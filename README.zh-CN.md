@@ -68,6 +68,13 @@ SYNTON-DB 是一个专门为大语言模型设计的记忆数据库，通过结�
 - 周期性衰减计算
 - 可配置的保留阈值
 
+### ML 嵌入服务
+
+- 多后端支持：本地（Candle）、OpenAI、Ollama
+- 嵌入缓存提升性能
+- 可配置模型选择
+- 支持 CPU/GPU 设备
+
 ### 双协议 API
 
 - REST API（端口 8080）- 基于 HTTP 的 JSON
@@ -324,8 +331,9 @@ synton-db/
 │   ├── graphrag/     # 混合搜索实现 ✅
 │   ├── paql/         # 查询语言解析器 ✅
 │   ├── memory/       # 记忆衰减管理 ✅
+│   ├── ml/           # ML 嵌入服务 ✅
 │   └── api/          # REST + gRPC API 层 ✅
-├── e2e/              # 端到端测试（39 个测试）✅
+├── e2e/              # 端到端测试 ✅
 ├── release/          # 发布文件
 │   └── docker/       # Docker 配置文件
 ├── docs/             # 文档
@@ -452,6 +460,27 @@ graph_weight = 0.3
 
 # 启用置信度评分
 confidence_scoring = true
+
+[ml]
+# 启用 ML 功能
+enabled = true
+
+# 后端类型：local、openai、ollama
+backend = "local"
+
+# 本地模型配置
+local_model = "sentence-transformers/all-MiniLM-L6-v2"
+device = "cpu"
+max_length = 512
+
+# API 配置（用于 openai/ollama 后端）
+api_endpoint = "https://api.openai.com/v1"
+api_model = "text-embedding-3-small"
+timeout_secs = 30
+
+# 嵌入缓存
+cache_enabled = true
+cache_size = 10000
 ```
 
 ### 环境变量
@@ -603,21 +632,23 @@ docker run -v $(pwd)/config.toml:/etc/synton-db/config.toml synton-db:dev
 - [x] REST + gRPC 双 API
 - [x] 全功能 CLI 工具
 - [x] Docker 部署
-- [x] E2E 测试套件（39 个测试）
+- [x] E2E 测试套件
 - [x] Prometheus + Grafana 监控
 - [x] 配置管理
+- [x] ML 嵌入服务（本地/OpenAI/Ollama）
 
-### 计划中 🚧
+### 进行中 🚧
 
-- [ ] ML 嵌入模型集成（Candle/ONNX）
-- [ ] 分布式存储支持
-- [ ] WebUI 控制台
 - [ ] 高级 PaQL 语法特性
+- [ ] 查询缓存层
+
+### 计划中 📋
+
+- [ ] WebUI 控制台
 - [ ] 备份/恢复工具
 - [ ] 访问控制和身份验证
-- [ ] 查询缓存层
+- [ ] 分布式存储支持
 - [ ] 高级告警系统
-- [ ] 多模型嵌入支持
 
 ---
 
@@ -635,7 +666,7 @@ docker run -v $(pwd)/config.toml:/etc/synton-db/config.toml synton-db:dev
 
 ```bash
 # 1. Fork 并克隆仓库
-git clone https://github.com/iannil/synton-db.git
+git clone https://github.com/synton-db/synton-db.git
 
 # 2. 创建功能分支
 git checkout -b feat/your-feature

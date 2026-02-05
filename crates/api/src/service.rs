@@ -19,6 +19,9 @@ use synton_core::{Edge, Node};
 use synton_graph::{Graph, MemoryGraph, TraverseDirection, TraversalConfig};
 use synton_memory::MemoryManager;
 
+#[cfg(feature = "ml")]
+use synton_ml::EmbeddingService;
+
 /// Main SYNTON-DB service.
 ///
 /// Combines all database components into a unified service.
@@ -31,6 +34,10 @@ pub struct SyntonDbService {
 
     /// Node lookup (for quick access by ID).
     nodes: Arc<RwLock<HashMap<Uuid, Node>>>,
+
+    /// Embedding service (optional, requires ML feature).
+    #[cfg(feature = "ml")]
+    embedding: Option<Arc<EmbeddingService>>,
 }
 
 impl SyntonDbService {
@@ -44,7 +51,36 @@ impl SyntonDbService {
             graph,
             memory,
             nodes,
+            #[cfg(feature = "ml")]
+            embedding: None,
         }
+    }
+
+    /// Create a new service instance with embedding support.
+    #[cfg(feature = "ml")]
+    pub fn with_embedding(embedding: Arc<EmbeddingService>) -> Self {
+        let graph = Arc::new(RwLock::new(MemoryGraph::new()));
+        let memory = Arc::new(RwLock::new(MemoryManager::new()));
+        let nodes = Arc::new(RwLock::new(HashMap::new()));
+
+        Self {
+            graph,
+            memory,
+            nodes,
+            embedding: Some(embedding),
+        }
+    }
+
+    /// Set the embedding service.
+    #[cfg(feature = "ml")]
+    pub fn set_embedding(&mut self, embedding: Arc<EmbeddingService>) {
+        self.embedding = Some(embedding);
+    }
+
+    /// Get a reference to the embedding service.
+    #[cfg(feature = "ml")]
+    pub fn embedding(&self) -> Option<&Arc<EmbeddingService>> {
+        self.embedding.as_ref()
     }
 
     /// Initialize the service with existing data.
@@ -72,7 +108,29 @@ impl SyntonDbService {
 
     /// Add a node to the database.
     pub async fn add_node(&self, request: AddNodeRequest) -> ApiResult<AddNodeResponse> {
-        let node = Node::new(request.content, request.node_type);
+        // Generate embedding if ML feature is enabled
+        #[cfg(feature = "ml")]
+        let embedding = if let Some(embedding_service) = &self.embedding {
+            match embedding_service.embed(&request.content).await {
+                Ok(emb) => Some(emb),
+                Err(e) => {
+                    tracing::warn!("Failed to generate embedding: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        #[cfg(not(feature = "ml"))]
+        let embedding = None;
+
+        let node = Node::new(request.content.clone(), request.node_type);
+        let node = if let Some(emb) = embedding {
+            node.with_embedding(emb)
+        } else {
+            node
+        };
 
         // Check if node already exists
         let exists = {

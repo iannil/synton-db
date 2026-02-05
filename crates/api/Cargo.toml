@@ -19,6 +19,7 @@ synton-graphrag = { path = "../graphrag" }
 synton-memory = { path = "../memory" }
 synton-paql = { path = "../paql" }
 synton-storage = { path = "../storage" }
+synton-ml = { path = "../ml", optional = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["rt-multi-thread", "net"] }
@@ -59,6 +60,10 @@ tokio-stream = { workspace = true }
 
 # Tower middleware
 tower-http = { version = "0.5.2", features = ["cors", "trace"] }
+
+[features]
+default = ["ml"]
+ml = ["dep:synton-ml"]
 
 [dev-dependencies]
 tokio = { workspace = true }

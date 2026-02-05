@@ -68,6 +68,13 @@ Traditional databases store and retrieve data but lack semantic understanding. S
 - Periodic decay calculation
 - Configurable retention thresholds
 
+### ML Embedding Service
+
+- Multiple backend support: Local (Candle), OpenAI, Ollama
+- Embedding cache for performance
+- Configurable model selection
+- CPU/GPU device support
+
 ### Dual Protocol APIs
 
 - REST API (Port 8080) - JSON over HTTP
@@ -324,8 +331,9 @@ synton-db/
 │   ├── graphrag/     # Hybrid search implementation ✅
 │   ├── paql/         # Query language parser ✅
 │   ├── memory/       # Memory decay management ✅
+│   ├── ml/           # ML embedding service ✅
 │   └── api/          # REST + gRPC API layer ✅
-├── e2e/              # End-to-end tests (39 tests) ✅
+├── e2e/              # End-to-end tests ✅
 ├── release/          # Release artifacts
 │   └── docker/       # Docker configuration files
 ├── docs/             # Documentation
@@ -452,6 +460,27 @@ graph_weight = 0.3
 
 # Enable confidence scoring
 confidence_scoring = true
+
+[ml]
+# Enable ML features
+enabled = true
+
+# Backend type: local, openai, ollama
+backend = "local"
+
+# Local model configuration
+local_model = "sentence-transformers/all-MiniLM-L6-v2"
+device = "cpu"
+max_length = 512
+
+# API configuration (for openai/ollama backends)
+api_endpoint = "https://api.openai.com/v1"
+api_model = "text-embedding-3-small"
+timeout_secs = 30
+
+# Embedding cache
+cache_enabled = true
+cache_size = 10000
 ```
 
 ### Environment Variables
@@ -603,21 +632,23 @@ Traditional databases return raw rows. SYNTON-DB:
 - [x] REST + gRPC dual API
 - [x] CLI tool with full feature set
 - [x] Docker deployment
-- [x] E2E test suite (39 tests)
+- [x] E2E test suite
 - [x] Prometheus + Grafana monitoring
 - [x] Configuration management
+- [x] ML embedding service (Local/OpenAI/Ollama)
 
-### Planned 🚧
+### In Progress 🚧
 
-- [ ] ML embedding model integration (Candle/ONNX)
-- [ ] Distributed storage support
-- [ ] WebUI console
 - [ ] Advanced PaQL syntax features
+- [ ] Query caching layer
+
+### Planned 📋
+
+- [ ] WebUI console
 - [ ] Backup/restore utilities
 - [ ] Access control and authentication
-- [ ] Query caching layer
+- [ ] Distributed storage support
 - [ ] Advanced alerting system
-- [ ] Multi-model embeddings support
 
 ---
 
@@ -635,7 +666,7 @@ We welcome contributions! Please follow these guidelines:
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/iannil/synton-db.git
+git clone https://github.com/synton-db/synton-db.git
 
 # 2. Create a feature branch
 git checkout -b feat/your-feature

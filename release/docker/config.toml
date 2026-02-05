@@ -83,3 +83,25 @@ graph_weight = 0.3
 
 # Enable confidence scoring
 confidence_scoring = true
+
+[ml]
+# Enable ML features
+enabled = true
+
+# Backend type: local, openai, ollama
+backend = "local"
+
+# Local model configuration (for local backend)
+local_model = "sentence-transformers/all-MiniLM-L6-v2"
+device = "cpu"
+max_length = 512
+
+# API configuration (for openai/ollama backends)
+api_endpoint = "https://api.openai.com/v1"
+# api_key = "${OPENAI_API_KEY}"  # Set via environment variable
+api_model = "text-embedding-3-small"
+timeout_secs = 30
+
+# Embedding cache
+cache_enabled = true
+cache_size = 10000

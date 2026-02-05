@@ -9,6 +9,62 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// ML / Embedding configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MlConfig {
+    /// Enable ML features.
+    pub enabled: bool,
+
+    /// Backend type: local, openai, ollama.
+    pub backend: String,
+
+    /// Local model configuration.
+    pub local_model: String,
+
+    /// Local model device: cpu, cuda, metal.
+    pub device: String,
+
+    /// Maximum sequence length for local model.
+    pub max_length: usize,
+
+    /// API endpoint for OpenAI/Ollama.
+    pub api_endpoint: String,
+
+    /// API key (for OpenAI).
+    pub api_key: Option<String>,
+
+    /// Model name for API backends.
+    pub api_model: String,
+
+    /// Request timeout in seconds.
+    pub timeout_secs: u64,
+
+    /// Enable embedding cache.
+    pub cache_enabled: bool,
+
+    /// Cache size.
+    pub cache_size: usize,
+}
+
+impl Default for MlConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            backend: "local".to_string(),
+            local_model: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
+            device: "cpu".to_string(),
+            max_length: 512,
+            api_endpoint: "https://api.openai.com/v1".to_string(),
+            api_key: None,
+            api_model: "text-embedding-3-small".to_string(),
+            timeout_secs: 30,
+            cache_enabled: true,
+            cache_size: 10000,
+        }
+    }
+}
+
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -188,6 +244,10 @@ pub struct Config {
     /// Graph-RAG settings.
     #[serde(rename = "graphrag")]
     pub graphrag: GraphRagConfig,
+
+    /// ML / Embedding settings.
+    #[serde(rename = "ml")]
+    pub ml: MlConfig,
 }
 
 impl Default for Config {
@@ -198,6 +258,7 @@ impl Default for Config {
             memory: MemoryConfig::default(),
             logging: LoggingConfig::default(),
             graphrag: GraphRagConfig::default(),
+            ml: MlConfig::default(),
         }
     }
 }
@@ -253,6 +314,17 @@ impl Config {
         // Logging overrides
         if let Ok(level) = std::env::var("SYNTON_LOG_LEVEL") {
             self.logging.level = level;
+        }
+
+        // ML overrides
+        if let Ok(backend) = std::env::var("SYNTON_ML_BACKEND") {
+            self.ml.backend = backend;
+        }
+        if let Ok(api_key) = std::env::var("SYNTON_ML_API_KEY") {
+            self.ml.api_key = Some(api_key);
+        }
+        if let Ok(api_endpoint) = std::env::var("SYNTON_ML_API_ENDPOINT") {
+            self.ml.api_endpoint = api_endpoint;
         }
     }
 

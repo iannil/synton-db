@@ -8,10 +8,13 @@
 
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::config::Config;
 use synton_api::SyntonDbService;
+
+#[cfg(feature = "ml")]
+use synton_ml::{BackendType, EmbeddingConfig, EmbeddingService};
 
 /// Server handle for managing running servers.
 pub struct ServerHandle {
@@ -57,7 +60,37 @@ impl ServerHandle {
 pub fn start_servers(
     config: &Config,
 ) -> Result<(ServerHandle, oneshot::Sender<()>), Box<dyn std::error::Error>> {
-    let service = Arc::new(SyntonDbService::new());
+    // Initialize service with optional ML support
+    #[cfg(feature = "ml")]
+    let service = {
+        if config.ml.enabled {
+            match init_embedding_service(config) {
+                Ok(embedding) => {
+                    info!(
+                        "ML embedding service initialized: backend={}, dimension={}",
+                        embedding.backend_type(),
+                        embedding.dimension()
+                    );
+                    Arc::new(SyntonDbService::with_embedding(embedding))
+                }
+                Err(e) => {
+                    warn!("Failed to initialize ML service: {}. Running without embeddings.", e);
+                    Arc::new(SyntonDbService::new())
+                }
+            }
+        } else {
+            info!("ML features disabled. Running without embeddings.");
+            Arc::new(SyntonDbService::new())
+        }
+    };
+
+    #[cfg(not(feature = "ml"))]
+    let service = {
+        if config.ml.enabled {
+            info!("ML features requested but ML feature is not enabled. Recompile with --features ml to enable.");
+        }
+        Arc::new(SyntonDbService::new())
+    };
 
     let grpc_handle = maybe_start_grpc(config, service.clone())?;
     let rest_handle = maybe_start_rest(config, service)?;
@@ -66,6 +99,40 @@ pub fn start_servers(
     let handle = ServerHandle::new(grpc_handle, rest_handle);
 
     Ok((handle, shutdown_tx))
+}
+
+/// Initialize the embedding service from configuration.
+#[cfg(feature = "ml")]
+fn init_embedding_service(config: &Config) -> Result<Arc<EmbeddingService>, Box<dyn std::error::Error>> {
+    use synton_ml::{ApiConfig, LocalModelConfig};
+
+    let backend_type = match config.ml.backend.to_lowercase().as_str() {
+        "openai" => BackendType::OpenAi,
+        "ollama" => BackendType::Ollama,
+        _ => BackendType::Local,
+    };
+
+    let ml_config = EmbeddingConfig {
+        backend: backend_type,
+        local: LocalModelConfig {
+            model_name: config.ml.local_model.clone(),
+            ..Default::default()
+        },
+        api: ApiConfig {
+            endpoint: config.ml.api_endpoint.clone(),
+            api_key: config.ml.api_key.clone(),
+            model: config.ml.api_model.clone(),
+            timeout_secs: config.ml.timeout_secs,
+            ..Default::default()
+        },
+        cache_enabled: config.ml.cache_enabled,
+        cache_size: config.ml.cache_size,
+        ..Default::default()
+    };
+
+    let rt = tokio::runtime::Runtime::new()?;
+    let service = rt.block_on(EmbeddingService::from_config(ml_config))?;
+    Ok(Arc::new(service))
 }
 
 /// Start the gRPC server if enabled.
