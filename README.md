@@ -1,261 +1,667 @@
 # SYNTON-DB
 
-## 🧑‍💻 User
+[![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-想做一个不同于传统的关系数据库、nosql数据库、文档数据库、向量数据库，而是专门帮助大模型，赋能大模型的数据库。这样的数据库它应该有怎样的特点？应该如何设计？
-
----
-## 🤖 Assistant
-
-这是一个非常有前瞻性的想法。目前的数据库生态中，Vector Database（向量数据库）虽然解决了“相似性搜索”的问题，但它缺乏**逻辑推理**、**结构化关联**和**动态记忆**的能力。
-
-要设计一个真正“赋能大模型”（LLM-Native）的数据库，我们不能只把它看作数据的**仓库（Storage）**，而应该把它看作大模型的**外挂大脑/海马体（External Brain/Hippocampus）**。
-
-我们将这种新型数据库称为 **"认知数据库" (Cognitive Database)** 或 **"神经符号数据库" (Neuro-Symbolic Database)**。
-
-以下是这种数据库应该具备的特点及设计思路：
+[中文文档](README.zh-CN.md)
 
 ---
 
-### 一、 核心理念：从“存取”转向“记忆与推理”
+## Overview
 
-传统数据库的核心是 CRUD（增删改查），追求 ACID 或 CAP。
-**大模型数据库的核心应该是：感知（Perception）、关联（Association）、回忆（Recall）和 进化（Evolution）。**
+SYNTON-DB is a specialized memory database designed for Large Language Models (LLMs). By combining knowledge graphs with vector retrieval, it provides semantic association, logical reasoning, and dynamic memory capabilities.
 
-它解决的痛点是：
-1. **向量数据库的“逻辑丢失”：** 向量只能找“相似”，不能找“A导致B”。
-2. **上下文窗口限制：** 不能把所有数据塞进 Prompt。
-3. **幻觉问题：** 需要精准的事实锚定。
+Unlike traditional databases (SQL, NoSQL, Vector) that focus on CRUD operations, SYNTON-DB is built on three core principles:
 
----
+- Ingestion = Understanding - Automatic knowledge graph extraction from input
+- Query = Reasoning - Hybrid vector similarity + graph traversal
+- Output = Context - Returns preprocessed context packages, not raw data
 
-### 二、 关键特点 (Characteristics)
+### What Problem Does It Solve?
 
-#### 1. "图+向量" 原生融合 (Native Graph-Vector Hybrid)
-* **不仅是存向量，而是存“带向量的知识图谱”。**
-* **特点：** 数据以节点（Node）和边（Edge）形式存在。节点存储文本/多模态数据及其Embedding（向量），边存储逻辑关系（如“属于”、“导致”、“位于”）及其Embedding。
-* **目的：** 当大模型查询“为什么...？”时，数据库不仅通过向量相似度找到相关片段，还能顺着“边”进行多跳推理（Multi-hop Reasoning），提供完整的逻辑链条。
+Traditional databases store and retrieve data but lack semantic understanding. SYNTON-DB:
 
-#### 2. 自适应的“块”管理 (Adaptive Chunking & Indexing)
-* **特点：** 现在的RAG（检索增强生成）通常是死板的切片（比如每500字切一段）。这种数据库应该能根据**语义完整性**自动切分数据。
-* **层级化存储：** 同时存储文档的“摘要层”、“段落层”和“句子层”。大模型先看摘要，觉得相关再调取细节，模拟人类阅读习惯。
+1. Understands relationships between entities, not just content similarity
+2. Maintains temporal context through memory decay and reinforcement
+3. Reasons through multi-hop connections using graph traversal
+4. Synthesizes context optimized for LLM consumption
 
-#### 3. 提示词即查询语言 (Prompt as Query Language - PaQL)
-* **特点：** 废除 SQL。用户或 Agent 不需要写 `SELECT * FROM...`。
-* **设计：** 直接接受自然语言或结构化的 Prompt。数据库内部内置一个小模型（SLM），负责解析意图，自动决定是做向量检索、关键词匹配，还是图遍历。
+### Key Differentiators
 
-#### 4. 主动式数据压缩与合成 (Active Compression & Synthesis)
-* **特点：** 传统数据库返回 Raw Data（原始行）。
-* **设计：** 大模型数据库应该返回 **Context（上下文）**。如果检索到的数据量超过了大模型的窗口限制，数据库应该在内部先进行一轮“摘要”或“合成”，只返回精华信息给大模型。
-
-#### 5. 记忆衰退与强化 (Memory Decay & Reinforcement)
-* **特点：** 像人脑一样，不常用的、低价值的信息应该逐渐“淡化”（降低检索权重或归档），而常被大模型引用且获得用户好评的信息应该被“强化”（更新向量，提升优先级）。
+| Feature | Traditional DB | SYNTON-DB |
+| --------- | --------------- | ----------- |
+| Storage | Tables/Documents/Vector | Tensor-Graph (nodes with vectors + edges with relations) |
+| Query | SQL/Vector Search | PaQL (Prompt as Query Language) |
+| Retrieval | Similarity-based | Graph-RAG (vector + graph traversal) |
+| Memory | Static | Dynamic (decay/reinforcement based on access) |
+| Output | Raw rows/columns | Synthesized context packages |
 
 ---
 
-### 三、 架构设计 (Architecture Design)
+## Core Features
 
-我们可以将其设计为四层架构：
+### Tensor-Graph Storage
 
-#### 第1层：摄入与认知层 (Ingestion & Cognition Layer)
-* **功能：** 数据只要丢进去，自动处理。
-* **ETL Agent：** 内置一个轻量级模型。
- * 输入一篇PDF，它自动识别实体（Entity）和关系（Relation）。
- * 自动生成 Embedding。
- * 自动生成该数据的 Summary（摘要）。
- * **关键点：** 数据不再是静态的文本块，而是被拆解成了知识原子。
+- Nodes contain content with optional vector embeddings
+- Edges represent logical relationships (is_a, causes, contradicts, etc.)
+- Supports 4 node types: `entity`, `concept`, `fact`, `raw_chunk`
+- Supports 7 relation types: `is_a`, `is_part_of`, `causes`, `similar_to`, `contradicts`, `happened_after`, `belongs_to`
 
-#### 第2层：存储结构层 (The Tensor-Graph Structure)
-这是最底层的物理设计，不同于 B+树或 LSM树：
-* **节点 (Node)：** 存储原始数据（Raw Text/Image） + 向量（Vector）。
-* **边 (Edge)：** 存储关系类型（Relation Type）+ 关系强度权重（Weight）。
-* **超边 (Hyperedge)：** 用于连接跨文档的复杂概念。
-* **时序索引：** 所有知识都要打上时间戳，大模型需要知道“现在的总统”和“2010年的总统”的区别。
+### Graph-RAG Hybrid Retrieval
 
-#### 第3层：神经计算层 (Neural Compute Layer)
-这是该数据库的“大脑”，区别于传统数据库的查询优化器：
-* **重排序 (Re-ranking)：** 检索出100条数据，利用内置的 Cross-Encoder 模型进行精细排序。
-* **事实核查 (Fact Checking)：** 在返回数据前，简单的逻辑冲突可以在库内检测。
-* **思维链构建 (CoT Builder)：** 数据库尝试预组装一个思维链。例如查询“特斯拉的风险”，数据库返回的不是散乱的文档，而是：`供应链问题 (Node A) -> 导致 -> 交付延迟 (Node B) -> 影响 -> 股价 (Node C)` 的路径。
+- Combines vector similarity search with multi-hop graph traversal
+- Configurable weights for vector vs. graph scoring
+- Returns ranked results with confidence scores
+- Configurable traversal depth and result limits
 
-#### 第4层：接口层 (Agent Interface Layer)
-* **Input：** 自然语言 Prompt。
-* **Output：** 结构化的 Context 对象（包含文本、来源、置信度分数）。
-* **Feedback Loop：** 接受大模型的反馈（如“这个数据没用”），用于更新数据库内部的权重。
+### PaQL (Prompt as Query Language)
 
----
+- Natural language query parser
+- Supports logical operators (AND, OR, NOT)
+- Supports filters and graph traversal queries
+- Optimized for LLM-generated queries
 
-### 四、 场景举例：与传统/向量数据库的对比
+### Memory Decay Mechanism
 
-**场景：** 用户问“如果苹果公司像诺基亚当年那样拒绝安卓，会有什么后果？”
+- Ebbinghaus forgetting curve implementation
+- Access score-based retention (0.0-10.0 scale)
+- Periodic decay calculation
+- Configurable retention thresholds
 
-* **传统数据库 (SQL)：** 无法回答，除非有一篇文章标题正好是这个。
-* **向量数据库 (Vector DB)：**
- * 检索含有“苹果”、“诺基亚”、“拒绝安卓”关键词的段落。
- * 返回结果可能是几篇关于诺基亚历史的文章和几篇苹果iOS的文章。
- * *缺点：* 它是割裂的，需要大模型自己去拼凑逻辑。
+### Dual Protocol APIs
 
-* **大模型专用数据库 (Cognitive DB)：**
- 1. **意图解析：** 识别这是一个“假设性推理”问题。
- 2. **图谱遍历：** 找到“诺基亚”节点，沿着边找到“拒绝安卓” -> “导致” -> “市场份额下降” -> “倒闭”。
- 3. **类比迁移：** 将“苹果”映射到“诺基亚”的位置。
- 4. **数据合成：** 检索苹果目前的“市场地位”数据。
- 5. **返回结果：** 数据库直接返回一个结构化包：包含诺基亚衰败的路径（历史教训）+ 苹果目前的竞争环境（现实数据），并提示大模型关注两者的相似性。
-
-### 五、 总结：如何定义这个新物种？
-
-这个数据库不应该叫 Database，或许应该叫 **"Knowledge Operating System" (知识操作系统)**。
-
-**设计口诀：**
-1. **入库即理解**（自动提取知识图谱）。
-2. **查询即推理**（结合向量搜索与图遍历）。
-3. **输出即上下文**（为大模型预处理数据，节省Token）。
-
-这就是下一代专为大模型设计的数据库应有的样子：它是连接**静态数据**与**动态智能**的中间件。
-
----
-## 🧑‍💻 User
-
-给我一个详细的技术方案。
-
----
-## 🤖 Assistant
-
-这是一个非常硬核且具有颠覆性的技术挑战。我们将这个数据库命名为 **"CortexDB" (皮层数据库)**。
-
-它的核心定位是：**LLM 的长期记忆与推理协处理器**。它不再是简单的“存储-检索”系统，而是一个具备微型认知能力的“神经符号系统”。
-
-以下是详细的技术方案设计：
+- REST API (Port 8080) - JSON over HTTP
+- gRPC API (Port 50051) - High-performance binary protocol
+- CORS enabled for web clients
 
 ---
 
-### 一、 总体架构设计 (System Architecture)
+## Quick Start
 
-CortexDB 采用 **存储计算分离** 架构，但在存储层引入了**嵌入式小模型（Embedded SLM）**来实现数据的“主动理解”。
+### Docker Compose (Recommended)
 
-#### 架构分层
-1. **接口层 (Interface Layer)**: PaQL (Prompt as Query Language) 解析器。
-2. **认知计算层 (Cognitive Compute Layer)**: 负责推理、重排序、上下文压缩。
-3. **索引与存储层 (Index & Storage Layer)**: 也就是核心的 **"Tensor-Graph" (张量图)** 引擎。
-4. **基础设施层 (Infrastructure)**: 基于 Rust 开发，利用 mmap (内存映射) 和 NVMe 优化。
+```bash
+# Clone the repository
+git clone https://github.com/synton-db/synton-db.git
+cd synton-db
 
----
+# Start all services (database + monitoring)
+docker-compose up -d
 
-### 二、 核心数据模型：Tensor-Graph (张量图)
+# Check service status
+docker-compose ps
 
-这是CortexDB与传统数据库最大的区别。我们不存表（Table），不存单纯的文档（Doc），而是存储 **"语义单元" (Semantic Units)**。
+# View logs
+docker-compose logs -f synton-db
+```
 
-#### 1. 基础单元设计
-* **节点 (Node - Semantic Atom)**:
- * `ID`: UUID
- * `Content`: 文本块/图片Base64
- * `Embedding`: 向量值 (如 Float32[^1536])
- * `Meta`: {时间戳, 来源, **置信度**, **访问热度**}
- * `Type`: 实体(Entity) / 概念(Concept) / 事实(Fact) / 原始片段(Raw Chunk)
-* **边 (Edge - Logical Link)**:
- * `SourceID` -> `TargetID`
- * `Relation`: 关系类型 (支持自然语言，如 "is_part_of", "contradicts", "happened_after")
- * `Weight`: 关联强度 (0.0 - 1.0)
- * `Vector`: 关系本身的向量表示 (用于模糊关系查询)
+Services exposed:
 
-#### 2. 存储引擎实现 (基于 Rust)
-* **向量存储**: 使用改进的 **DiskANN** 算法（比 HNSW 更省内存，适合大规模），支持量化存储 (PQ/SQ)。
-* **图存储**: 使用 **CSR (Compressed Sparse Row)** 格式存储邻接表，确保图遍历的高性能。
-* **正文存储**: 列式存储 (Columnar Store)，使用 Parquet 或 Arrow 格式，便于快速提取元数据。
+- `8080` - REST API
+- `50051` - gRPC API
+- `9090` - Prometheus metrics
+- `3000` - Grafana dashboard
 
----
+### Build from Source
 
-### 三、 写入路径设计 (The "Active Ingestion" Path)
+```bash
+# Prerequisites: Rust 1.75+, Git
 
-写入不是 `INSERT INTO`，而是 `ABSORB`。数据进入时，数据库内部运行一个轻量级 Pipeline。
+# Build the server
+cargo build --release -p synton-db-server
 
-**技术流程：**
-1. **分块 (Chunking)**:
- * **语义分割**: 不按字符数切分，而是利用 NLP 模型识别段落、句子的语义边界。
-2. **知识抽取 (Knowledge Extraction - 关键步骤)**:
- * 调用内置的微型模型 (如 BERT-based 或 7B 量化模型)。
- * **提取**: 实体 (人、地、物) 和 关系。
- * **生成**: 节点的摘要 (Summary)。
-3. **图谱构建**:
- * 将切片作为 Node。
- * 将提取出的实体作为 Node。
- * 建立连接 Edge。
- * **自动去重/融合**: 如果发现“埃隆·马斯克”节点已存在，则将新信息挂载上去，而不是新建节点。
-4. **向量化**: 对文本和关系生成 Embedding 并存入索引。
+# Build the CLI tool
+cargo build --release -p synton-cli
+
+# Run the server
+./target/release/synton-db-server --config config.toml
+```
+
+### Verification
+
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# Get statistics
+curl http://localhost:8080/stats
+```
 
 ---
 
-### 四、 查询路径设计 (The "Reasoning" Path)
+## CLI Usage
 
-查询不再是简单的 `Find K-Nearest Neighbors`，而是 **Graph-RAG (图增强检索)**。
+The `synton-cli` tool provides a comprehensive command-line interface.
 
-**查询流程 (Pipeline)：**
+### Connection Options
 
-1. **用户输入**: "特斯拉现在的股价受哪些供应链因素影响？"
-2. **意图解析 (Query Parser)**:
- * 提取关键词: "特斯拉", "股价", "供应链"。
- * 提取逻辑: "影响" (Causal Relation)。
-3. **混合检索 (Hybrid Retrieval)**:
- * **Step A (锚点定位)**: 通过向量搜索找到最相似的几个节点 (Root Nodes)。
- * **Step B (图游走)**: 从 Root Nodes 开始，沿着 "supply_chain", "affects", "delays" 等类型的边进行 BFS/DFS 搜索（深度限制为 2-3 层）。
-4. **重排序与剪枝 (Re-ranking & Pruning)**:
- * 使用 Cross-Encoder 对收集到的几十个节点进行评分。
- * 剔除低相关性、过时的数据。
-5. **上下文合成 (Context Synthesis - 核心创新)**:
- * **Prompt 组装**: 数据库不直接返回 Raw Data。它将检索到的碎片信息重新组织。
- * **格式**:
- ```json
- {
- "direct_facts": ["...", "..."],
- "inferential_paths": ["特斯拉 -> 电池短缺 -> 产量下降 -> 股价波动"],
- "contradictions": ["分析师A说涨", "分析师B说跌"]
- }
- ```
- * 如果数据量过大，调用内置小模型进行 Summarize，确保不撑爆大模型的 Context Window。
+```bash
+synton-cli --host <host> --port <port> --format <text|json> [command]
+```
+
+### Node Operations
+
+```bash
+# Create a node
+synton-cli node create "Paris is the capital of France" --node-type fact
+
+# Get a node by ID
+synton-cli node get <uuid>
+
+# Delete a node (with confirmation)
+synton-cli node delete <uuid>
+
+# Delete without confirmation
+synton-cli node delete <uuid> --force
+
+# List all nodes
+synton-cli node list --limit 100
+```
+
+### Edge Operations
+
+```bash
+# Create an edge between nodes
+synton-cli edge create <source-id> <target-id> --relation is_part_of --weight 0.9
+
+# List edges for a node
+synton-cli edge list <node-id> --limit 100
+```
+
+### Query Operations
+
+```bash
+# Execute a PaQL query
+synton-cli query execute "capital city" --limit 10
+```
+
+### System Operations
+
+```bash
+# Get database statistics
+synton-cli stats
+
+# Get detailed statistics
+synton-cli stats --detailed
+
+# Export data to JSON
+synton-cli export --format json --output backup.json
+
+# Import data from JSON
+synton-cli import --format json --input backup.json
+
+# Import with continue-on-error
+synton-cli import --format json --input backup.json --continue-on-error
+```
 
 ---
 
-### 五、 独有特性实现 (Unique Features)
+## API Endpoints
 
-#### 1. 记忆衰退与强化机制 (Memory Decay & Reinforcement)
-* **原理**: 模仿生物遗忘曲线（Ebbinghaus Forgetting Curve）。
-* **实现**:
- * 每个节点有一个 `AccessScore` (访问分) 和 `LastAccessTime` (最后访问时间)。
- * 后台启动一个 **GC (Garbage Collection) 线程**:
- * `CurrentScore = InitialScore * e^(-λ * TimeElapsed)`
- * 如果分数低于阈值，节点被标记为 "Cold Storage"（仅存磁盘，移出内存索引）或直接删除。
- * **强化**: 每次被大模型引用且用户点赞，大幅提升 `AccessScore`。
+### REST API (Port 8080)
 
-#### 2. 动态事实修正 (Dynamic Fact Correction)
-* **场景**: 旧数据说 "Twitter CEO 是 Parag"，新数据说 "Twitter CEO 是 Musk"。
-* **实现**:
- * 写入新数据时，检测语义冲突 (Semantic Conflict Detection)。
- * 如果冲突，**不覆盖** 旧数据，而是：
- 1. 给旧边打上 `expired` 标签。
- 2. 创建一条 `replaced_by` 的边指向新节点。
- 3. 大模型查询历史时仍可知晓变迁。
+| Endpoint | Method | Description |
+| ---------- | -------- | ------------- |
+| `/health` | GET | Health check |
+| `/stats` | GET | Database statistics |
+| `/nodes` | GET | List all nodes |
+| `/nodes` | POST | Create a new node |
+| `/nodes/:id` | GET | Get node by ID |
+| `/nodes/:id` | DELETE | Delete node by ID |
+| `/edges` | POST | Create a new edge |
+| `/query` | POST | Execute PaQL query |
+| `/traverse` | POST | Graph traversal |
+| `/bulk` | POST | Bulk operations |
 
-#### 3. 虚拟上下文 (Virtual Context)
-* **功能**: 为大模型提供“千人千面”的数据库视图。
-* **设计**: 支持 `Session View`。在用户会话期间，数据库可以暂存用户的临时对话作为“短期记忆节点”，与长期记忆库进行混合检索，会话结束后自动清理。
+#### Request/Response Examples
+
+Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "uptime_secs": 0
+}
+```
+
+Create Node
+
+```bash
+curl -X POST http://localhost:8080/nodes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Paris is the capital of France",
+    "node_type": "fact"
+  }'
+```
+
+```json
+{
+  "node": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "content": "Paris is the capital of France",
+    "node_type": "fact",
+    "embedding": null,
+    "meta": {
+      "created_at": "2025-02-05T10:00:00Z",
+      "access_score": 5.0
+    }
+  },
+  "created": true
+}
+```
+
+Execute Query
+
+```bash
+curl -X POST http://localhost:8080/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "capital",
+    "limit": 10,
+    "include_metadata": false
+  }'
+```
+
+```json
+{
+  "nodes": [...],
+  "total_count": 5,
+  "execution_time_ms": 12,
+  "truncated": false
+}
+```
+
+Create Edge
+
+```bash
+curl -X POST http://localhost:8080/edges \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "<uuid-1>",
+    "target": "<uuid-2>",
+    "relation": "is_part_of",
+    "weight": 0.9
+  }'
+```
+
+Bulk Operations
+
+```bash
+curl -X POST http://localhost:8080/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodes": [
+      {"content": "Node 1", "node_type": "entity"},
+      {"content": "Node 2", "node_type": "concept"}
+    ],
+    "edges": []
+  }'
+```
+
+### gRPC API (Port 50051)
+
+The gRPC API provides the same functionality with better performance for high-throughput scenarios. See `crates/api/src/grpc.rs` for the Protocol Buffers definition.
 
 ---
 
-### 六、 技术栈推荐 (Tech Stack Recommendation)
+## Project Structure
 
-如果要从零开发 CortexDB，建议：
+```text
+synton-db/
+├── crates/
+│   ├── bin/          # Server binary ✅
+│   ├── cli/          # Command-line tool ✅
+│   ├── core/         # Core types (Node, Edge, Relation) ✅
+│   ├── storage/      # RocksDB + Lance storage ✅
+│   ├── vector/       # Vector indexing ✅
+│   ├── graph/        # Graph traversal algorithms ✅
+│   ├── graphrag/     # Hybrid search implementation ✅
+│   ├── paql/         # Query language parser ✅
+│   ├── memory/       # Memory decay management ✅
+│   └── api/          # REST + gRPC API layer ✅
+├── e2e/              # End-to-end tests (39 tests) ✅
+├── release/          # Release artifacts
+│   └── docker/       # Docker configuration files
+├── docs/             # Documentation
+│   ├── progress/     # Work-in-progress documentation
+│   └── reports/      # Completed reports
+├── docker-compose.yml
+├── Dockerfile
+└── Cargo.toml
+```
 
-* **开发语言**: **Rust** (内存安全，高性能，适合写数据库内核)。
-* **底层存储**: **RocksDB** 或 **LMDB** (作为 KV 存储基座)。
-* **向量索引**: **Faiss** (C++ binding) 或 **Lance** (Rust 原生列式向量存储)。
-* **嵌入式模型**: **ONNX Runtime** 或 **Candle** (HuggingFace 的 Rust ML 框架)，用于在数据库内部跑轻量级 Transformer。
-* **网络协议**: **gRPC** (高效内部通讯) + **REST** (对外交互)。
+### Architecture Overview
 
-### 七、 总结：它解决了什么问题？
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                     Interface Layer                         │
+│  ┌──────────────────┐        ┌──────────────────┐          │
+│  │   REST API       │        │    gRPC API      │          │
+│  │   (Axum)         │        │    (Tonic)       │          │
+│  └──────────────────┘        └──────────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                   Cognitive Compute Layer                   │
+│  ┌──────────────────┐  ┌─────────────┐  ┌───────────────┐  │
+│  │     PaQL         │  │  Graph-RAG  │  │  Memory Mgmt  │  │
+│  │   Parser         │  │   Search    │  │   (Decay)     │  │
+│  └──────────────────┘  └─────────────┘  └───────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                  Tensor-Graph Storage Layer                 │
+│  ┌──────────────────┐        ┌──────────────────┐          │
+│  │    RocksDB       │        │     Lance        │          │
+│  │  (Graph Store)   │        │  (Vector Store)  │          │
+│  └──────────────────┘        └──────────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                   Infrastructure Layer                       │
+│                   Rust + Tokio Runtime                      │
+└─────────────────────────────────────────────────────────────┘
+```
 
-做这样一个数据库，你实际上是在做 **"RAG (Retrieval-Augmented Generation) 的操作系统化"**。
+---
 
-* **传统 RAG**: 需要开发者自己写 Python 脚本做切片、调用 OpenAI Embedding、存入 Pinecone、再取出、再重排。链路太长，极易断裂。
-* **CortexDB**: 开发者只需把 PDF 扔进去，然后问问题。**所有中间的脏活累活（切片、向量化、构图、重排），全部由数据库内核自动完成。**
+## Configuration
 
-这才是真正赋能大模型的基础设施。
+### Configuration File
+
+Create a `config.toml` file or use the default in `release/docker/config.toml`:
+
+```toml
+[server]
+# Host address to bind to
+host = "0.0.0.0"
+
+# gRPC server port
+grpc_port = 50051
+
+# REST API server port
+rest_port = 8080
+
+# Enable/disable servers
+grpc_enabled = true
+rest_enabled = true
+
+[storage]
+# RocksDB data directory
+rocksdb_path = "./data/rocksdb"
+
+# Lance data directory
+lance_path = "./data/lance"
+
+# Maximum open files for RocksDB
+max_open_files = 5000
+
+# Cache size for RocksDB (in MB)
+cache_size_mb = 256
+
+# Enable write-ahead log
+wal_enabled = true
+
+[memory]
+# Decay scale for the forgetting curve (days)
+decay_scale = 20.0
+
+# Retention threshold (0.0-1.0)
+retention_threshold = 0.1
+
+# Initial access score for new nodes
+initial_access_score = 5.0
+
+# Access score boost per access
+access_boost = 0.5
+
+# Enable periodic decay calculation
+periodic_decay_enabled = false
+
+# Interval for decay calculation (seconds)
+decay_interval_secs = 3600
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Enable JSON formatted logs
+json_format = false
+
+# Enable tracing output
+tracing_enabled = true
+
+[graphrag]
+# Maximum depth for graph traversal
+max_traversal_depth = 3
+
+# Maximum nodes to return from hybrid search
+max_results = 10
+
+# Weight for vector similarity (0.0-1.0)
+vector_weight = 0.7
+
+# Weight for graph proximity (0.0-1.0)
+graph_weight = 0.3
+
+# Enable confidence scoring
+confidence_scoring = true
+```
+
+### Environment Variables
+
+Configuration can be overridden with environment variables:
+
+| Variable | Description | Default |
+| ---------- | ------------- | --------- |
+| `SYNTON_SERVER_HOST` | Server bind address | `0.0.0.0` |
+| `SYNTON_SERVER_GRPC_PORT` | gRPC port | `50051` |
+| `SYNTON_SERVER_REST_PORT` | REST API port | `8080` |
+| `SYNTON_STORAGE_ROCKSDB_PATH` | RocksDB data path | `./data/rocksdb` |
+| `SYNTON_STORAGE_LANCE_PATH` | Lance data path | `./data/lance` |
+| `SYNTON_LOG_LEVEL` | Log level | `info` |
+
+---
+
+## Development
+
+### Prerequisites
+
+- Rust 1.75+
+- Node.js 18+ (for E2E tests)
+- Docker & Docker Compose (for containerized testing)
+
+### Running Tests
+
+```bash
+# Unit tests
+cargo test
+
+# Unit tests with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_add_node
+
+# E2E tests
+cd e2e
+npm install
+npx playwright install
+npm test
+
+# E2E tests with visible browser
+npm run test:headed
+
+# E2E test report
+npm run test:report
+```
+
+### Code Quality
+
+```bash
+# Format code
+cargo fmt
+
+# Check formatting
+cargo fmt --check
+
+# Lint with Clippy
+cargo clippy
+
+# Lint with warnings as errors
+cargo clippy -- -D warnings
+
+# Generate documentation
+cargo doc --open
+
+# Generate documentation for all crates
+cargo doc --document-private-items --open
+```
+
+### Building
+
+```bash
+# Debug build
+cargo build
+
+# Release build (optimized)
+cargo build --release
+
+# Build specific crate
+cargo build -p synton-db-server
+
+# Build with features
+cargo build --features all
+```
+
+### Docker Development
+
+```bash
+# Build Docker image
+docker build -t synton-db:dev .
+
+# Run container
+docker run -p 8080:8080 -p 50051:50051 synton-db:dev
+
+# Run with custom config
+docker run -v $(pwd)/config.toml:/etc/synton-db/config.toml synton-db:dev
+```
+
+---
+
+## Design Philosophy
+
+> Traditional databases focus on CRUD, pursuing ACID or CAP.
+> Cognitive databases focus on: perception, association, recall, and evolution.
+
+### Ingestion = Understanding
+
+Traditional databases store data as-is. SYNTON-DB automatically:
+
+- Extracts entities and relationships
+- Builds knowledge graphs
+- Creates semantic embeddings
+- Establishes temporal context
+
+### Query = Reasoning
+
+Traditional databases match patterns. SYNTON-DB:
+
+- Combines vector similarity with graph traversal
+- Follows logical chains through connected nodes
+- Weights results by confidence and relevance
+- Returns contextualized information
+
+### Output = Context
+
+Traditional databases return raw rows. SYNTON-DB:
+
+- Synthesizes related information
+- Compresses and prioritizes context
+- Formats output for LLM consumption
+- Maintains provenance and confidence
+
+---
+
+## Roadmap
+
+### Completed ✅
+
+- [x] Core data model (Node, Edge, Relation)
+- [x] Storage layer (RocksDB + Lance backends)
+- [x] Vector indexing (Lance integration)
+- [x] Graph traversal (BFS/DFS algorithms)
+- [x] Graph-RAG hybrid retrieval
+- [x] PaQL query parser
+- [x] Memory decay management
+- [x] REST + gRPC dual API
+- [x] CLI tool with full feature set
+- [x] Docker deployment
+- [x] E2E test suite (39 tests)
+- [x] Prometheus + Grafana monitoring
+- [x] Configuration management
+
+### Planned 🚧
+
+- [ ] ML embedding model integration (Candle/ONNX)
+- [ ] Distributed storage support
+- [ ] WebUI console
+- [ ] Advanced PaQL syntax features
+- [ ] Backup/restore utilities
+- [ ] Access control and authentication
+- [ ] Query caching layer
+- [ ] Advanced alerting system
+- [ ] Multi-model embeddings support
+
+---
+
+## Contributing
+
+We welcome contributions! Please follow these guidelines:
+
+1. Code Style: Follow Rust conventions and use `cargo fmt`
+2. Tests: Write tests for new features (target 80% coverage)
+3. Commits: Use conventional commit format (`feat:`, `fix:`, `docs:`, etc.)
+4. Documentation: Update relevant docs for any changes
+5. PRs: Provide clear descriptions and link related issues
+
+### Development Workflow
+
+```bash
+# 1. Fork and clone the repository
+git clone https://github.com/iannil/synton-db.git
+
+# 2. Create a feature branch
+git checkout -b feat/your-feature
+
+# 3. Make changes and test
+cargo test
+cargo clippy
+
+# 4. Commit with conventional format
+git commit -m "feat: add your feature description"
+
+# 5. Push and create PR
+git push origin feat/your-feature
+```
+
+---
+
+## License
+
+Apache License 2.0
+
+---
+
+## Links
+
+- Repository: [https://github.com/synton-db/synton-db](https://github.com/synton-db/synton-db)
+- Documentation: [docs/](./docs/)
+- Issues: [https://github.com/synton-db/synton-db/issues](https://github.com/synton-db/synton-db/issues)
+- Discussions: [https://github.com/synton-db/synton-db/discussions](https://github.com/synton-db/synton-db/discussions)

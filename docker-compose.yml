@@ -1,0 +1,93 @@
+# Copyright 2025 SYNTON-DB Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+
+version: "3.9"
+
+services:
+  ###################################
+  # SYNTON-DB Main Service
+  ###################################
+  synton-db:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synton-db:latest
+    container_name: synton-db
+    restart: unless-stopped
+    ports:
+      - "50051:50051"  # gRPC
+      - "8080:8080"    # REST API
+    volumes:
+      - synton-data:/data
+      - ./release/docker/config.toml:/etc/synton-db/config.toml:ro
+    environment:
+      - SYNTON_LOG_LEVEL=info
+      - SYNTON_SERVER_HOST=0.0.0.0
+      - SYNTON_SERVER_GRPC_PORT=50051
+      - SYNTON_SERVER_REST_PORT=8080
+      - SYNTON_STORAGE_ROCKSDB_PATH=/data/rocksdb
+      - SYNTON_STORAGE_LANCE_PATH=/data/lance
+    networks:
+      - synton-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  ###################################
+  # Prometheus - Metrics Collection
+  ###################################
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: synton-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./release/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - synton-network
+
+  ###################################
+  # Grafana - Visualization
+  ###################################
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: synton-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./release/docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./release/docker/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - synton-network
+    depends_on:
+      - prometheus
+
+networks:
+  synton-network:
+    driver: bridge
+    name: synton-network
+
+volumes:
+  synton-data:
+    name: synton-data
+  prometheus-data:
+    name: synton-prometheus-data
+  grafana-data:
+    name: synton-grafana-data

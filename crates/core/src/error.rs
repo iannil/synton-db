@@ -32,7 +32,12 @@ pub enum CoreError {
     InvalidAccessScore(f32),
 
     /// Content too large
-    ContentTooLarge { size: usize, max: usize },
+    ContentTooLarge {
+        /// The actual content size in bytes
+        size: usize,
+        /// Maximum allowed content size in bytes
+        max: usize
+    },
 
     /// Content is empty
     EmptyContent,

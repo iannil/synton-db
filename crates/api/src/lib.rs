@@ -12,7 +12,8 @@
 mod error;
 mod grpc;
 mod models;
-mod rest;
+/// REST API handlers and router.
+pub mod rest;
 mod service;
 
 pub use error::{ApiError, ApiResult};

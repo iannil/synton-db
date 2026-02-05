@@ -1,0 +1,26 @@
+# Test configuration for synton-db-server
+# Used during E2E testing
+
+[server]
+host = "127.0.0.1"
+grpc_port = 50051
+rest_port = 8080
+
+[storage]
+rocksdb_path = "./test-data/rocksdb"
+lance_path = "./test-data/lance"
+
+[memory]
+decay_scale = 20.0
+retention_threshold = 0.1
+decay_function = "Exponential"
+
+[logging]
+level = "info"
+json_logs = false
+
+[graphrag]
+enabled = true
+vector_weight = 0.7
+graph_weight = 0.3
+max_context_size = 8000

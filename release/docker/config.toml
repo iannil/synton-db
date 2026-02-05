@@ -1,0 +1,85 @@
+# SYNTON-DB Default Production Configuration
+#
+# This file contains the default configuration for SYNTON-DB.
+# In production, you should override these values using environment variables:
+# - SYNTON_SERVER_HOST
+# - SYNTON_SERVER_GRPC_PORT
+# - SYNTON_SERVER_REST_PORT
+# - SYNTON_STORAGE_ROCKSDB_PATH
+# - SYNTON_STORAGE_LANCE_PATH
+# - SYNTON_LOG_LEVEL
+
+[server]
+# Host address to bind to (0.0.0.0 for all interfaces)
+host = "0.0.0.0"
+
+# gRPC server port
+grpc_port = 50051
+
+# REST API server port
+rest_port = 8080
+
+# Enable/disable servers
+grpc_enabled = true
+rest_enabled = true
+
+[storage]
+# RocksDB data directory
+rocksdb_path = "/data/rocksdb"
+
+# Lance data directory
+lance_path = "/data/lance"
+
+# Maximum open files for RocksDB
+max_open_files = 5000
+
+# Cache size for RocksDB (in MB)
+cache_size_mb = 256
+
+# Enable write-ahead log
+wal_enabled = true
+
+[memory]
+# Decay scale for the forgetting curve (days)
+decay_scale = 20.0
+
+# Retention threshold (0.0-1.0). Nodes below this score are candidates for cleanup
+retention_threshold = 0.1
+
+# Initial access score for new nodes (0.0-10.0)
+initial_access_score = 5.0
+
+# Access score boost per access
+access_boost = 0.5
+
+# Enable periodic decay calculation
+periodic_decay_enabled = false
+
+# Interval for decay calculation (in seconds)
+decay_interval_secs = 3600
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Enable JSON formatted logs
+json_format = false
+
+# Enable tracing output
+tracing_enabled = true
+
+[graphrag]
+# Maximum depth for graph traversal during retrieval
+max_traversal_depth = 3
+
+# Maximum nodes to return from hybrid search
+max_results = 10
+
+# Weight for vector similarity (0.0-1.0)
+vector_weight = 0.7
+
+# Weight for graph proximity (0.0-1.0)
+graph_weight = 0.3
+
+# Enable confidence scoring
+confidence_scoring = true

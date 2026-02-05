@@ -1,0 +1,45 @@
+# Copyright 2025 SYNTON-DB Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+
+# Build artifacts
+target/
+debug/
+release/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test data
+*.db
+*.log
+
+# Memory
+memory/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Backup
+backup/

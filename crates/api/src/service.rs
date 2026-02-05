@@ -282,7 +282,7 @@ impl SyntonDbService {
         // Use an explicit stack for iterative processing instead of recursion
         let mut stack = vec![(query_node, false)];
         let mut results_map: HashMap<Uuid, Node> = HashMap::new();
-        let mut exclude_set: HashSet<Uuid> = HashSet::new();
+        let exclude_set: HashSet<Uuid> = HashSet::new();
         let mut operation_count = 0;
 
         while let Some((current_node, processed)) = stack.pop() {
@@ -334,7 +334,7 @@ impl SyntonDbService {
                     stack.push((left, false));
                     stack.push((right, false));
                 }
-                QueryNode::Not { input } => {
+                QueryNode::Not { input: _ } => {
                     // For MVP, skip Not queries in text search
                 }
                 QueryNode::GraphTraversal { .. } => {

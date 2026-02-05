@@ -158,7 +158,7 @@ impl From<&str> for Relation {
 
 impl From<String> for Relation {
     fn from(s: String) -> Self {
-        s.parse().unwrap_or_else(|_| Self::Custom(s))
+        s.parse().unwrap_or(Self::Custom(s))
     }
 }
 

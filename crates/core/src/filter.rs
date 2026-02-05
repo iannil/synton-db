@@ -10,24 +10,52 @@ use std::fmt;
 #[serde(rename_all = "snake_case")]
 pub enum Filter {
     /// Field equality check
-    Equals { field: String, value: FilterValue },
+    Equals {
+        /// The field name to check
+        field: String,
+        /// The value to compare against
+        value: FilterValue
+    },
 
     /// Field contains substring
-    Contains { field: String, value: String },
+    Contains {
+        /// The field name to check
+        field: String,
+        /// The substring to search for
+        value: String
+    },
 
     /// Field greater than numeric value
-    GreaterThan { field: String, value: f64 },
+    GreaterThan {
+        /// The field name to check
+        field: String,
+        /// The minimum value (exclusive)
+        value: f64
+    },
 
     /// Field less than numeric value
-    LessThan { field: String, value: f64 },
+    LessThan {
+        /// The field name to check
+        field: String,
+        /// The maximum value (exclusive)
+        value: f64
+    },
 
     /// Field in list of values
-    InList { field: String, values: Vec<FilterValue> },
+    InList {
+        /// The field name to check
+        field: String,
+        /// The list of acceptable values
+        values: Vec<FilterValue>
+    },
 
     /// Field range check
     Range {
+        /// The field name to check
         field: String,
+        /// Minimum value (inclusive)
         min: f64,
+        /// Maximum value (inclusive)
         max: f64,
     },
 
@@ -45,9 +73,13 @@ pub enum Filter {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FilterValue {
+    /// String value
     String(String),
+    /// Integer number value
     Number(i64),
+    /// Floating point number value
     Float(f64),
+    /// Boolean value
     Boolean(bool),
 }
 
