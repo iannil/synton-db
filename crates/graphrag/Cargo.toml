@@ -1,0 +1,27 @@
+[package]
+name = "synton-graphrag"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Workspace dependencies
+synton-core = { path = "../core" }
+synton-graph = { path = "../graph" }
+synton-vector = { path = "../vector" }
+
+async-trait = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

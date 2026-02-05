@@ -1,0 +1,17 @@
+[package]
+name = "synton-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+synton-core = { path = "../core" }
+synton-storage = { path = "../storage" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }

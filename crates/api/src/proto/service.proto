@@ -1,0 +1,235 @@
+// Copyright 2025 SYNTON-DB Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+
+syntax = "proto3";
+
+package synton.v1;
+
+// SyntonDB service provides gRPC access to the cognitive database.
+service SyntonDB {
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // Node operations
+  rpc AddNode(AddNodeRequest) returns (AddNodeResponse);
+  rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+
+  // Edge operations
+  rpc AddEdge(AddEdgeRequest) returns (AddEdgeResponse);
+  rpc GetEdges(GetEdgesRequest) returns (GetEdgesResponse);
+
+  // Query operations
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Traverse(TraverseRequest) returns (TraverseResponse);
+
+  // Statistics
+  rpc Stats(StatsRequest) returns (StatsResponse);
+
+  // Bulk operations
+  rpc BulkOperation(BulkOperationRequest) returns (BulkOperationResponse);
+}
+
+// Health check
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string version = 2;
+  uint64 uptime_secs = 3;
+}
+
+// Node types
+enum NodeType {
+  NODE_TYPE_UNKNOWN = 0;
+  NODE_TYPE_ENTITY = 1;
+  NODE_TYPE_CONCEPT = 2;
+  NODE_TYPE_FACT = 3;
+  NODE_TYPE_RAW_CHUNK = 4;
+}
+
+// Relation types
+enum Relation {
+  RELATION_UNKNOWN = 0;
+  RELATION_IS_A = 1;
+  RELATION_PART_OF = 2;
+  RELATION_CAUSES = 3;
+  RELATION_SIMILAR_TO = 4;
+  RELATION_CONTRADICTS = 5;
+  RELATION_HAPPENED_AFTER = 6;
+  RELATION_BELONGS_TO = 7;
+}
+
+// Node message
+message Node {
+  string id = 1;
+  string content = 2;
+  NodeType node_type = 3;
+  repeated float embedding = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+  float access_score = 7;
+  string source = 8;
+  map<string, string> attributes = 9;
+}
+
+// Edge message
+message Edge {
+  string source = 1;
+  string target = 2;
+  Relation relation = 3;
+  float weight = 4;
+  repeated float vector = 5;
+  int64 created_at = 6;
+  bool expired = 7;
+  string replaced_by = 8;
+  map<string, string> attributes = 9;
+}
+
+// Add node
+message AddNodeRequest {
+  string content = 1;
+  NodeType node_type = 2;
+  repeated float embedding = 3;
+  map<string, string> attributes = 4;
+}
+
+message AddNodeResponse {
+  Node node = 1;
+  bool created = 2;
+}
+
+// Get node
+message GetNodeRequest {
+  string id = 1;
+}
+
+message GetNodeResponse {
+  optional Node node = 1;
+}
+
+// Delete node
+message DeleteNodeRequest {
+  string id = 1;
+}
+
+message DeleteNodeResponse {
+  bool deleted = 1;
+  string id = 2;
+}
+
+// List nodes
+message ListNodesRequest {
+  uint32 limit = 1;
+  uint32 offset = 2;
+}
+
+message ListNodesResponse {
+  repeated Node nodes = 1;
+  uint32 total_count = 2;
+}
+
+// Add edge
+message AddEdgeRequest {
+  string source = 1;
+  string target = 2;
+  Relation relation = 3;
+  float weight = 4;
+  repeated float vector = 5;
+}
+
+message AddEdgeResponse {
+  Edge edge = 1;
+}
+
+// Get edges
+message GetEdgesRequest {
+  string node_id = 1;
+}
+
+message GetEdgesResponse {
+  repeated Edge edges = 1;
+}
+
+// Query
+message QueryRequest {
+  string query = 1;
+  uint32 limit = 2;
+  bool include_metadata = 3;
+}
+
+message QueryResponse {
+  repeated Node nodes = 1;
+  uint32 total_count = 2;
+  uint64 execution_time_ms = 3;
+  bool truncated = 4;
+}
+
+// Traversal
+enum TraverseDirection {
+  TRAVERSE_DIRECTION_FORWARD = 0;
+  TRAVERSE_DIRECTION_BACKWARD = 1;
+  TRAVERSE_DIRECTION_BOTH = 2;
+}
+
+message TraverseRequest {
+  string start_id = 1;
+  uint32 max_depth = 2;
+  uint32 max_nodes = 3;
+  TraverseDirection direction = 4;
+}
+
+message TraverseResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+  uint32 depth = 3;
+  bool truncated = 4;
+}
+
+// Statistics
+message StatsRequest {}
+
+message MemoryStats {
+  uint32 total_nodes = 1;
+  uint32 active_nodes = 2;
+  uint32 decayed_nodes = 3;
+  float average_score = 4;
+  float load_factor = 5;
+}
+
+message StatsResponse {
+  uint32 node_count = 1;
+  uint32 edge_count = 2;
+  uint32 embedded_count = 3;
+  MemoryStats memory_stats = 4;
+}
+
+// Bulk operation
+message BulkNodeRequest {
+  string content = 1;
+  NodeType node_type = 2;
+  repeated float embedding = 3;
+  map<string, string> attributes = 4;
+}
+
+message BulkEdgeRequest {
+  string source = 1;
+  string target = 2;
+  Relation relation = 3;
+  float weight = 4;
+}
+
+message BulkOperationRequest {
+  repeated BulkNodeRequest nodes = 1;
+  repeated BulkEdgeRequest edges = 2;
+}
+
+message BulkOperationResponse {
+  repeated string node_ids = 1;
+  repeated string edge_ids = 2;
+  uint32 success_count = 3;
+  uint32 failure_count = 4;
+  repeated string errors = 5;
+}

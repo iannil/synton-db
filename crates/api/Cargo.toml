@@ -1,0 +1,72 @@
+[package]
+name = "synton-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Internal crates
+synton-core = { path = "../core" }
+synton-graph = { path = "../graph" }
+synton-graphrag = { path = "../graphrag" }
+synton-memory = { path = "../memory" }
+synton-paql = { path = "../paql" }
+synton-storage = { path = "../storage" }
+
+# Async runtime
+tokio = { workspace = true, features = ["rt-multi-thread", "net"] }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+prost = { workspace = true }
+
+# gRPC
+tonic = { workspace = true, features = ["transport", "server"] }
+
+# REST API
+axum = { workspace = true }
+tower = { workspace = true }
+hyper = { workspace = true, features = ["full"] }
+http = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Utils
+bytes = { workspace = true }
+futures = { workspace = true }
+tokio-stream = { workspace = true }
+
+# Tower middleware
+tower-http = { version = "0.5.2", features = ["cors", "trace"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = { workspace = true }
+
+[[bin]]
+name = "synton-server"
+path = "src/bin/server.rs"
+
+[build-dependencies]
+tonic-build = "0.12"

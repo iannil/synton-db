@@ -1,0 +1,22 @@
+# ⚠️ DEPRECATED: Use synton-paql instead
+[package]
+name = "synton-query"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+deprecated = "Use synton-paql instead"
+
+[dependencies]
+synton-core = { path = "../core" }
+synton-storage = { path = "../storage" }
+synton-vector = { path = "../vector" }
+synton-graph = { path = "../graph" }
+synton-ml = { path = "../ml" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+nom = { workspace = true }

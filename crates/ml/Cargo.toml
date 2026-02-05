@@ -1,0 +1,26 @@
+[package]
+name = "synton-ml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+synton-core = { path = "../core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Optional ML dependencies (feature-gated)
+candle = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+
+[features]
+default = []
+candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
