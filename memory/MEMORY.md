@@ -14,7 +14,7 @@ SYNTON-DB 是一个认知数据库（Cognitive Database），也称为"神经符
 - SYNTON-DB：专注于记忆、推理和关联
 
 ### 项目阶段
-当前处于**MVP 阶段完成，进入集成阶段**。
+当前处于**生产就绪阶段 - 质量保障完成**。
 
 **已完成**:
 - MVP0: 存储基础 (RocksDB + Lance)
@@ -23,8 +23,18 @@ SYNTON-DB 是一个认知数据库（Cognitive Database），也称为"神经符
 - MVP3: PaQL (查询解析器)
 - MVP4: 记忆机制 (遗忘曲线)
 - MVP5: API 服务 (REST + gRPC)
+- Phase 1: 单元测试覆盖 (188 测试)
+- Phase 2: Candle ML 实现 (代码完整)
+- Phase 3: API 文档 (OpenAPI 规范)
+- Phase 4: 集成测试 (19 测试)
 
-**进行中**: 集成与部署准备
+**测试状态**: 342 测试全部通过 ✅
+
+**后续优化** (P2):
+- 性能基准测试
+- 并发压力测试
+- 分页支持
+- Swagger UI 可视化界面
 
 ---
 
@@ -172,4 +182,32 @@ SYNTON-DB 基于四大原则：
 
 ## 经验教训
 
-（此部分将在项目进展中逐步填充）
+### 依赖管理经验 (2026-02-06)
+
+**1. chrono 与 arrow-arith 版本冲突**
+- 问题: `lance 0.12.0` 依赖 `arrow 51.0.0`，其 `ChronoDateExt` trait 的 `quarter()` 方法与 `chrono 0.4.38+` 的 `Datelike::quarter()` 冲突
+- 解决: 固定 chrono 到 `=0.4.37`（使用精确版本约束 `=`）
+- 经验: 当间接依赖引入兼容性问题时，使用精确版本固定作为临时解决方案
+
+**2. workspace 依赖版本管理**
+- workspace 中的 `chrono = "0.4.38"` 会被解析为更新的 `0.4.43`
+- 需要固定时必须使用 `=0.4.37` 精确版本语法
+- 运行 `cargo update -p chrono` 后重新构建
+
+### 集成测试经验 (2026-02-06)
+
+**1. RocksDB 锁问题**
+- 问题: 同一进程不能打开两次同一数据库
+- 解决: 重新打开前显式 `drop(store)` 释放锁
+
+**2. Rust 移动语义**
+- 问题: 多次调用 `unwrap()` 导致值移动
+- 解决: 使用 `as_ref().unwrap()` 进行引用访问
+
+**3. 测试组织**
+- 集成测试放在 `crates/api/tests/` 而非项目根 `tests/`
+- 遵循 workspace 结构，避免路径问题
+
+**4. 测试辅助函数**
+- `create_temp_store()` 返回 `(store, temp_dir)` 元组
+- 保持 `temp_dir` 存活直到测试结束，防止目录过早删除

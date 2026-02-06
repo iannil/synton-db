@@ -19,6 +19,7 @@ synton-graphrag = { path = "../graphrag" }
 synton-memory = { path = "../memory" }
 synton-paql = { path = "../paql" }
 synton-storage = { path = "../storage" }
+synton-vector = { path = "../vector" }
 synton-ml = { path = "../ml", optional = true }
 
 # Async runtime
@@ -38,6 +39,8 @@ axum = { workspace = true }
 tower = { workspace = true }
 hyper = { workspace = true, features = ["full"] }
 http = { workspace = true }
+utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "4.0", features = ["axum"] }
 
 # Error handling
 thiserror = { workspace = true }
@@ -68,6 +71,7 @@ ml = ["dep:synton-ml"]
 [dev-dependencies]
 tokio = { workspace = true }
 tower = { workspace = true }
+tempfile = "3.12"
 
 [[bin]]
 name = "synton-server"

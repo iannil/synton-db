@@ -7,7 +7,7 @@ use crate::{
         ComparisonOp, Filter, FilterField, FilterValue, Query, QueryNode, SortField, SortFieldType,
         SortOrder, TraverseDirection,
     },
-    error::{ParseError, ParseResult},
+    error::ParseResult,
 };
 
 /// PaQL query parser.
@@ -279,21 +279,21 @@ impl Parser {
         // Try "limit N"
         if let Some(pos) = lower.find("limit") {
             let after = &lower[pos + 5..];
-            let num = after.trim().split_whitespace().next()?;
+            let num = after.split_whitespace().next()?;
             return num.parse().ok();
         }
 
         // Try "top N"
         if let Some(pos) = lower.find("top") {
             let after = &lower[pos + 3..];
-            let num = after.trim().split_whitespace().next()?;
+            let num = after.split_whitespace().next()?;
             return num.parse().ok();
         }
 
         // Try "first N"
         if let Some(pos) = lower.find("first") {
             let after = &lower[pos + 5..];
-            let num = after.trim().split_whitespace().next()?;
+            let num = after.split_whitespace().next()?;
             return num.parse().ok();
         }
 

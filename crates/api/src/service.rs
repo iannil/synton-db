@@ -22,6 +22,9 @@ use synton_memory::MemoryManager;
 #[cfg(feature = "ml")]
 use synton_ml::EmbeddingService;
 
+use synton_storage::Store;
+use synton_vector::{VectorIndex, MemoryVectorIndex};
+
 /// Main SYNTON-DB service.
 ///
 /// Combines all database components into a unified service.
@@ -35,9 +38,18 @@ pub struct SyntonDbService {
     /// Node lookup (for quick access by ID).
     nodes: Arc<RwLock<HashMap<Uuid, Node>>>,
 
+    /// Persistent storage backend (optional).
+    store: Option<Arc<dyn Store>>,
+
+    /// Vector index for semantic search.
+    vector_index: Option<Arc<dyn VectorIndex>>,
+
     /// Embedding service (optional, requires ML feature).
     #[cfg(feature = "ml")]
     embedding: Option<Arc<EmbeddingService>>,
+
+    /// Whether persistence is enabled.
+    persistence_enabled: bool,
 }
 
 impl SyntonDbService {
@@ -51,6 +63,27 @@ impl SyntonDbService {
             graph,
             memory,
             nodes,
+            store: None,
+            vector_index: None,
+            persistence_enabled: false,
+            #[cfg(feature = "ml")]
+            embedding: None,
+        }
+    }
+
+    /// Create a new service instance with persistent storage.
+    pub fn with_store(store: Arc<dyn Store>) -> Self {
+        let graph = Arc::new(RwLock::new(MemoryGraph::new()));
+        let memory = Arc::new(RwLock::new(MemoryManager::new()));
+        let nodes = Arc::new(RwLock::new(HashMap::new()));
+
+        Self {
+            graph,
+            memory,
+            nodes,
+            store: Some(store),
+            vector_index: None,
+            persistence_enabled: true,
             #[cfg(feature = "ml")]
             embedding: None,
         }
@@ -63,10 +96,37 @@ impl SyntonDbService {
         let memory = Arc::new(RwLock::new(MemoryManager::new()));
         let nodes = Arc::new(RwLock::new(HashMap::new()));
 
+        // Create vector index with embedding dimension
+        let vector_index = Some(Arc::new(MemoryVectorIndex::new(embedding.dimension())) as Arc<dyn VectorIndex>);
+
         Self {
             graph,
             memory,
             nodes,
+            store: None,
+            vector_index,
+            persistence_enabled: false,
+            embedding: Some(embedding),
+        }
+    }
+
+    /// Create a new service instance with both store and embedding support.
+    #[cfg(feature = "ml")]
+    pub fn with_store_and_embedding(store: Arc<dyn Store>, embedding: Arc<EmbeddingService>) -> Self {
+        let graph = Arc::new(RwLock::new(MemoryGraph::new()));
+        let memory = Arc::new(RwLock::new(MemoryManager::new()));
+        let nodes = Arc::new(RwLock::new(HashMap::new()));
+
+        // Create vector index with embedding dimension
+        let vector_index = Some(Arc::new(MemoryVectorIndex::new(embedding.dimension())) as Arc<dyn VectorIndex>);
+
+        Self {
+            graph,
+            memory,
+            nodes,
+            store: Some(store),
+            vector_index,
+            persistence_enabled: true,
             embedding: Some(embedding),
         }
     }
@@ -74,13 +134,71 @@ impl SyntonDbService {
     /// Set the embedding service.
     #[cfg(feature = "ml")]
     pub fn set_embedding(&mut self, embedding: Arc<EmbeddingService>) {
+        let vector_index = Some(Arc::new(MemoryVectorIndex::new(embedding.dimension())) as Arc<dyn VectorIndex>);
         self.embedding = Some(embedding);
+        self.vector_index = vector_index;
+    }
+
+    /// Set the persistent store.
+    pub fn set_store(&mut self, store: Arc<dyn Store>) {
+        self.store = Some(store);
+        self.persistence_enabled = true;
+    }
+
+    /// Set the vector index.
+    pub fn set_vector_index(&mut self, index: Arc<dyn VectorIndex>) {
+        self.vector_index = Some(index);
     }
 
     /// Get a reference to the embedding service.
     #[cfg(feature = "ml")]
     pub fn embedding(&self) -> Option<&Arc<EmbeddingService>> {
         self.embedding.as_ref()
+    }
+
+    /// Get a reference to the store.
+    pub fn store(&self) -> Option<&Arc<dyn Store>> {
+        self.store.as_ref()
+    }
+
+    /// Get a reference to the vector index.
+    pub fn vector_index(&self) -> Option<&Arc<dyn VectorIndex>> {
+        self.vector_index.as_ref()
+    }
+
+    /// Check if persistence is enabled.
+    pub fn is_persistence_enabled(&self) -> bool {
+        self.persistence_enabled
+    }
+
+    /// Initialize the service by loading data from persistent storage.
+    pub async fn initialize_from_store(&self) -> ApiResult<()> {
+        let Some(store) = &self.store else {
+            return Ok(()); // No store configured, nothing to load
+        };
+
+        // Load all nodes from storage
+        let mut nodes = Vec::new();
+        let mut stream = store.scan_nodes(None).await?;
+        while let Some(node_result) = futures::StreamExt::next(&mut stream).await {
+            match node_result {
+                Ok(node) => nodes.push(node),
+                Err(e) => {
+                    tracing::warn!("Failed to load node from storage: {}", e);
+                }
+            }
+        }
+
+        // Load all edges by scanning
+        let mut edges = Vec::new();
+        // For now, we'll load edges by iterating through nodes and getting their edges
+        for node in &nodes {
+            if let Ok(outgoing) = store.get_outgoing_edges(node.id).await {
+                edges.extend(outgoing);
+            }
+        }
+
+        self.initialize(nodes, edges).await
     }
 
     /// Initialize the service with existing data.
@@ -106,8 +224,13 @@ impl SyntonDbService {
         Ok(())
     }
 
-    /// Add a node to the database.
-    pub async fn add_node(&self, request: AddNodeRequest) -> ApiResult<AddNodeResponse> {
+    // ========== Helper methods for add_node() ==========
+
+    /// Create a node with optional embedding and attributes.
+    async fn create_node_with_embedding(
+        &self,
+        request: &AddNodeRequest,
+    ) -> ApiResult<Node> {
         // Generate embedding if ML feature is enabled
         #[cfg(feature = "ml")]
         let embedding = if let Some(embedding_service) = &self.embedding {
@@ -125,29 +248,86 @@ impl SyntonDbService {
         #[cfg(not(feature = "ml"))]
         let embedding = None;
 
-        let node = Node::new(request.content.clone(), request.node_type);
-        let node = if let Some(emb) = embedding {
-            node.with_embedding(emb)
-        } else {
-            node
-        };
-
-        // Check if node already exists
-        let exists = {
-            let nodes = self.nodes.read().await;
-            nodes.contains_key(&node.id)
-        };
-
-        if exists {
-            // Return existing node
-            let nodes = self.nodes.read().await;
-            let existing = nodes.get(&node.id).cloned();
-            return Ok(AddNodeResponse {
-                node: existing.unwrap(),
-                created: false,
-            });
+        let mut node = Node::new(request.content.clone(), request.node_type);
+        if let Some(emb) = embedding {
+            node = node.with_embedding(emb);
+        }
+        if let Some(ref attrs) = request.attributes {
+            node = node.with_attributes(attrs.clone());
         }
 
+        Ok(node)
+    }
+
+    /// Check if a node exists in memory or storage.
+    async fn check_node_exists(&self, node_id: Uuid) -> (bool, bool) {
+        let exists_in_memory = {
+            let nodes = self.nodes.read().await;
+            nodes.contains_key(&node_id)
+        };
+
+        let exists_in_storage = if self.persistence_enabled {
+            if let Some(store) = &self.store {
+                store.node_exists(node_id).await.unwrap_or(false)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        (exists_in_memory, exists_in_storage)
+    }
+
+    /// Load an existing node from storage into memory.
+    async fn load_node_from_storage(&self, node_id: Uuid) -> ApiResult<Option<Node>> {
+        if !self.persistence_enabled {
+            return Ok(None);
+        }
+
+        let Some(store) = &self.store else {
+            return Ok(None);
+        };
+
+        let Some(existing) = store.get_node(node_id).await.ok().flatten() else {
+            return Ok(None);
+        };
+
+        // Add to memory structures
+        {
+            let mut graph = self.graph.write().await;
+            let _ = graph.add_node(existing.clone());
+        }
+        {
+            let mut nodes = self.nodes.write().await;
+            nodes.insert(existing.id, existing.clone());
+        }
+        {
+            let mut memory = self.memory.write().await;
+            let _ = memory.register(existing.clone());
+        }
+
+        Ok(Some(existing))
+    }
+
+    /// Persist a node to storage if enabled.
+    async fn persist_node(&self, node: &Node) -> ApiResult<()> {
+        if !self.persistence_enabled {
+            return Ok(());
+        }
+
+        let Some(store) = &self.store else {
+            return Ok(());
+        };
+
+        store.put_node(node).await.map_err(|e| {
+            tracing::error!("Failed to persist node: {}", e);
+            ApiError::Storage(format!("Failed to persist node: {}", e))
+        })
+    }
+
+    /// Add a node to all in-memory structures.
+    async fn add_node_to_memory(&self, node: &Node) -> ApiResult<()> {
         // Add to graph
         {
             let mut graph = self.graph.write().await;
@@ -166,6 +346,63 @@ impl SyntonDbService {
             memory.register(node.clone())?;
         }
 
+        Ok(())
+    }
+
+    /// Index a node's vector in the vector index if available.
+    async fn index_node_vector(&self, node: &Node) {
+        let Some(ref vector_index) = self.vector_index else {
+            return;
+        };
+
+        let Some(ref embedding) = node.embedding else {
+            return;
+        };
+
+        if let Err(e) = vector_index.insert(node.id, embedding.clone()).await {
+            tracing::warn!("Failed to index node vector: {}", e);
+        }
+    }
+
+    // ========== Public API methods ==========
+
+    /// Add a node to the database.
+    pub async fn add_node(&self, request: AddNodeRequest) -> ApiResult<AddNodeResponse> {
+        // Create node with embedding
+        let node = self.create_node_with_embedding(&request).await?;
+
+        // Check if node already exists
+        let (exists_in_memory, exists_in_storage) = self.check_node_exists(node.id).await;
+
+        // Return existing node if found
+        if exists_in_memory {
+            let nodes = self.nodes.read().await;
+            if let Some(existing) = nodes.get(&node.id).cloned() {
+                return Ok(AddNodeResponse {
+                    node: existing,
+                    created: false,
+                });
+            }
+        }
+
+        if exists_in_storage {
+            if let Some(existing) = self.load_node_from_storage(node.id).await? {
+                return Ok(AddNodeResponse {
+                    node: existing,
+                    created: false,
+                });
+            }
+        }
+
+        // Persist to storage
+        self.persist_node(&node).await?;
+
+        // Add to memory structures
+        self.add_node_to_memory(&node).await?;
+
+        // Index vector
+        self.index_node_vector(&node).await;
+
         Ok(AddNodeResponse {
             node,
             created: true,
@@ -176,14 +413,54 @@ impl SyntonDbService {
     pub async fn add_edge(&self, request: AddEdgeRequest) -> ApiResult<AddEdgeResponse> {
         let edge = Edge::with_weight(request.source, request.target, request.relation, request.weight);
 
-        // Validate nodes exist
-        {
+        // Validate nodes exist (check memory first, then storage if enabled)
+        let source_exists = {
             let nodes = self.nodes.read().await;
-            if !nodes.contains_key(&request.source) {
-                return Err(ApiError::NodeNotFound(request.source));
-            }
-            if !nodes.contains_key(&request.target) {
-                return Err(ApiError::NodeNotFound(request.target));
+            nodes.contains_key(&request.source)
+        };
+        let target_exists = {
+            let nodes = self.nodes.read().await;
+            nodes.contains_key(&request.target)
+        };
+
+        let (source_valid, target_valid) = if self.persistence_enabled {
+            let store_source = if !source_exists {
+                if let Some(store) = &self.store {
+                    store.node_exists(request.source).await.unwrap_or(false)
+                } else {
+                    false
+                }
+            } else {
+                true
+            };
+            let store_target = if !target_exists {
+                if let Some(store) = &self.store {
+                    store.node_exists(request.target).await.unwrap_or(false)
+                } else {
+                    false
+                }
+            } else {
+                true
+            };
+            (source_exists || store_source, target_exists || store_target)
+        } else {
+            (source_exists, target_exists)
+        };
+
+        if !source_valid {
+            return Err(ApiError::NodeNotFound(request.source));
+        }
+        if !target_valid {
+            return Err(ApiError::NodeNotFound(request.target));
+        }
+
+        // Add to persistent storage if enabled
+        if self.persistence_enabled {
+            if let Some(store) = &self.store {
+                if let Err(e) = store.put_edge(&edge).await {
+                    tracing::error!("Failed to persist edge: {}", e);
+                    return Err(ApiError::Storage(format!("Failed to persist edge: {}", e)));
+                }
             }
         }
 
@@ -197,34 +474,89 @@ impl SyntonDbService {
     }
 
     /// Get a node by ID.
+    /// Get a node by ID.
     pub async fn get_node(&self, request: GetNodeRequest) -> ApiResult<GetNodeResponse> {
-        let nodes = self.nodes.read().await;
+        // First check in-memory cache
+        {
+            let nodes = self.nodes.read().await;
+            if let Some(node) = nodes.get(&request.id) {
+                return Ok(GetNodeResponse {
+                    node: Some(node.clone()),
+                });
+            }
+        }
+
+        // If not in memory and persistence is enabled, check storage
+        if self.persistence_enabled {
+            if let Some(store) = &self.store {
+                match store.get_node(request.id).await {
+                    Ok(Some(node)) => {
+                        // Cache in memory
+                        {
+                            let mut nodes = self.nodes.write().await;
+                            nodes.insert(node.id, node.clone());
+                        }
+                        {
+                            let mut graph = self.graph.write().await;
+                            let _ = graph.add_node(node.clone());
+                        }
+                        {
+                            let mut memory = self.memory.write().await;
+                            let _ = memory.register(node.clone());
+                        }
+                        return Ok(GetNodeResponse {
+                            node: Some(node),
+                        });
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!("Failed to get node from storage: {}", e);
+                    }
+                }
+            }
+        }
+
         Ok(GetNodeResponse {
-            node: nodes.get(&request.id).cloned(),
+            node: None,
         })
     }
 
     /// Delete a node by ID.
     pub async fn delete_node(&self, request: DeleteNodeRequest) -> ApiResult<DeleteNodeResponse> {
-        let removed = {
+        let was_in_memory = {
             let mut nodes = self.nodes.write().await;
             nodes.remove(&request.id)
         };
 
-        if removed.is_some() {
-            // Also remove from memory
+        // Remove from persistent storage if enabled
+        let was_in_storage = if self.persistence_enabled {
+            if let Some(store) = &self.store {
+                match store.delete_node(request.id).await {
+                    Ok(deleted) => deleted,
+                    Err(e) => {
+                        tracing::error!("Failed to delete node from storage: {}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        let deleted = was_in_memory.is_some() || was_in_storage;
+
+        if deleted {
+            // Also remove from memory manager
             let mut memory = self.memory.write().await;
             memory.unregister(request.id);
-            Ok(DeleteNodeResponse {
-                deleted: true,
-                id: request.id,
-            })
-        } else {
-            Ok(DeleteNodeResponse {
-                deleted: false,
-                id: request.id,
-            })
         }
+
+        Ok(DeleteNodeResponse {
+            deleted,
+            id: request.id,
+        })
     }
 
     /// Query the database.
@@ -240,7 +572,7 @@ impl SyntonDbService {
 
         let elapsed = start.elapsed().as_millis() as u64;
         let total_count = nodes.len();
-        let truncated = request.limit.map_or(false, |l| nodes.len() > l);
+        let truncated = request.limit.is_some_and(|l| nodes.len() > l);
 
         Ok(QueryResponse {
             nodes,
@@ -273,6 +605,55 @@ impl SyntonDbService {
             depth: result.depth,
             truncated: result.truncated,
         })
+    }
+
+    /// Hybrid search combining vector similarity and graph traversal.
+    pub async fn hybrid_search(&self, query: &str, k: usize) -> ApiResult<Vec<Node>> {
+        #[cfg(feature = "ml")]
+        {
+            // Generate query embedding
+            let query_embedding = if let Some(embedding_service) = &self.embedding {
+                match embedding_service.embed(query).await {
+                    Ok(emb) => emb,
+                    Err(e) => {
+                        tracing::warn!("Failed to generate query embedding: {}", e);
+                        return self.simple_text_search(query, Some(k)).await;
+                    }
+                }
+            } else {
+                return self.simple_text_search(query, Some(k)).await;
+            };
+
+            // Use vector index if available
+            if let Some(vector_index) = &self.vector_index {
+                match vector_index.search(&query_embedding, k).await {
+                    Ok(search_results) => {
+                        let mut result_nodes = Vec::new();
+                        let nodes = self.nodes.read().await;
+
+                        for result in search_results {
+                            if let Some(node) = nodes.get(&result.id) {
+                                result_nodes.push(node.clone());
+                            }
+                        }
+
+                        return Ok(result_nodes);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Vector search failed: {}, falling back to text search", e);
+                    }
+                }
+            }
+
+            // Fallback to text search if vector index is not available
+            self.simple_text_search(query, Some(k)).await
+        }
+
+        #[cfg(not(feature = "ml"))]
+        {
+            // No ML feature enabled, use simple text search
+            self.simple_text_search(query, Some(k)).await
+        }
     }
 
     /// Get database statistics.

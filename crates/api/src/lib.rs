@@ -12,6 +12,8 @@
 mod error;
 mod grpc;
 mod models;
+/// OpenAPI documentation.
+pub mod openapi;
 /// REST API handlers and router.
 pub mod rest;
 mod service;

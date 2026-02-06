@@ -246,7 +246,7 @@ impl EmbeddingService {
         // Update stats
         let mut stats = self.stats.write().await;
         stats.total_embeddings += 1;
-        stats.total_tokens += text.split_whitespace().count() as usize;
+        stats.total_tokens += text.split_whitespace().count();
         let n = stats.total_embeddings as f64;
         stats.avg_time_ms = (stats.avg_time_ms * (n - 1.0) + elapsed) / n;
 
@@ -324,7 +324,7 @@ impl EmbeddingService {
             let mut stats = self.stats.write().await;
             stats.total_batch_requests += 1;
             stats.total_embeddings += uncached_texts.len();
-            stats.total_tokens += uncached_texts.iter().map(|t| t.split_whitespace().count() as usize).sum::<usize>();
+            stats.total_tokens += uncached_texts.iter().map(|t| t.split_whitespace().count()).sum::<usize>();
             let n = stats.total_embeddings as f64;
             stats.avg_time_ms =
                 (stats.avg_time_ms * (n - uncached_texts.len() as f64) + elapsed) / n;

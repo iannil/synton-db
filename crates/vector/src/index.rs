@@ -3,6 +3,9 @@
 // Licensed under the Apache License, Version 2.0 (the "License)");
 
 use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{VectorError, VectorResult};
@@ -81,10 +84,10 @@ pub trait VectorIndex: Send + Sync {
 }
 
 /// In-memory vector index for testing and simple use cases.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct MemoryVectorIndex {
     dimension: usize,
-    vectors: std::collections::HashMap<Uuid, Vec<f32>>,
+    vectors: Arc<RwLock<HashMap<Uuid, Vec<f32>>>>,
 }
 
 impl MemoryVectorIndex {
@@ -92,7 +95,7 @@ impl MemoryVectorIndex {
     pub fn new(dimension: usize) -> Self {
         Self {
             dimension,
-            vectors: std::collections::HashMap::new(),
+            vectors: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -130,12 +133,22 @@ impl VectorIndex for MemoryVectorIndex {
                 found: vector.len(),
             });
         }
-        // Note: This would need interior mutability in a real implementation
-        // For now, we use a different approach
+        let mut vectors = self.vectors.write().await;
+        vectors.insert(id, vector);
         Ok(())
     }
 
-    async fn insert_batch(&self, _vectors: Vec<(Uuid, Vec<f32>)>) -> VectorResult<()> {
+    async fn insert_batch(&self, vectors: Vec<(Uuid, Vec<f32>)>) -> VectorResult<()> {
+        let mut store = self.vectors.write().await;
+        for (id, vector) in vectors {
+            if vector.len() != self.dimension {
+                return Err(VectorError::InvalidDimension {
+                    expected: self.dimension,
+                    found: vector.len(),
+                });
+            }
+            store.insert(id, vector);
+        }
         Ok(())
     }
 
@@ -147,8 +160,8 @@ impl VectorIndex for MemoryVectorIndex {
             });
         }
 
-        let mut results: Vec<SearchResult> = self
-            .vectors
+        let vectors = self.vectors.read().await;
+        let mut results: Vec<SearchResult> = vectors
             .iter()
             .map(|(&id, vec)| {
                 let score = Self::cosine_similarity(query, vec);
@@ -161,16 +174,27 @@ impl VectorIndex for MemoryVectorIndex {
         Ok(results)
     }
 
-    async fn remove(&self, _id: Uuid) -> VectorResult<()> {
+    async fn remove(&self, id: Uuid) -> VectorResult<()> {
+        let mut vectors = self.vectors.write().await;
+        vectors.remove(&id);
         Ok(())
     }
 
-    async fn update(&self, _id: Uuid, _vector: Vec<f32>) -> VectorResult<()> {
+    async fn update(&self, id: Uuid, vector: Vec<f32>) -> VectorResult<()> {
+        if vector.len() != self.dimension {
+            return Err(VectorError::InvalidDimension {
+                expected: self.dimension,
+                found: vector.len(),
+            });
+        }
+        let mut vectors = self.vectors.write().await;
+        vectors.insert(id, vector);
         Ok(())
     }
 
     async fn count(&self) -> VectorResult<usize> {
-        Ok(self.vectors.len())
+        let vectors = self.vectors.read().await;
+        Ok(vectors.len())
     }
 
     fn dimension(&self) -> usize {

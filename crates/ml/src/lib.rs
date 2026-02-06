@@ -13,6 +13,7 @@ pub mod error;
 pub mod backend;
 pub mod config;
 pub mod local;
+pub mod loader;
 pub mod openai;
 pub mod ollama;
 pub mod service;

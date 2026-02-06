@@ -9,9 +9,9 @@ mod error;
 mod index;
 
 pub use error::{VectorError, VectorResult};
-pub use index::VectorIndex;
+pub use index::{MemoryVectorIndex, SearchResult, VectorIndex};
 
 /// Re-exports commonly used types
 pub mod prelude {
-    pub use crate::{VectorError, VectorIndex, VectorResult};
+    pub use crate::{MemoryVectorIndex, VectorError, VectorIndex, VectorResult};
 }

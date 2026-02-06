@@ -4,7 +4,6 @@
 
 //! Error types for the ML module.
 
-use std::fmt;
 
 /// ML module error type.
 #[derive(Debug, thiserror::Error)]

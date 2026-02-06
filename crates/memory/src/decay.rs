@@ -5,12 +5,14 @@
 use std::time::Duration;
 
 use crate::config::DecayConfig;
-use synton_core::{Node, NodeType, Source};
+use synton_core::Node;
 
 /// Types of forgetting curves for memory decay.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default)]
 pub enum DecayCurve {
     /// Ebbinghaus exponential decay: R(t) = e^(-λt)
+    #[default]
     Ebbinghaus,
 
     /// Power law decay: R(t) = t^(-α)
@@ -23,11 +25,6 @@ pub enum DecayCurve {
     None,
 }
 
-impl Default for DecayCurve {
-    fn default() -> Self {
-        Self::Ebbinghaus
-    }
-}
 
 impl DecayCurve {
     /// Calculate retention at time t (in hours).

@@ -224,6 +224,7 @@ impl Default for GraphRagConfig {
 /// Complete server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     /// Server settings.
     #[serde(rename = "server")]
@@ -250,18 +251,6 @@ pub struct Config {
     pub ml: MlConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            storage: StorageConfig::default(),
-            memory: MemoryConfig::default(),
-            logging: LoggingConfig::default(),
-            graphrag: GraphRagConfig::default(),
-            ml: MlConfig::default(),
-        }
-    }
-}
 
 impl Config {
     /// Load configuration from a TOML file.

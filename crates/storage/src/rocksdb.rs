@@ -13,7 +13,7 @@ use futures::{stream::BoxStream, StreamExt};
 use uuid::Uuid;
 
 use crate::{ColumnFamily, StorageError, StorageResult, Store, WriteOp};
-use synton_core::{Edge, Node, NodeType, Relation};
+use synton_core::{Edge, Node};
 
 /// RocksDB configuration.
 #[derive(Debug, Clone)]

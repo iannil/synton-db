@@ -381,8 +381,8 @@ impl Graph for MemoryGraph {
 
             if let Some(edges) = self.edges.get(&current) {
                 for edge in edges {
-                    if !visited.contains_key(&edge.target) {
-                        visited.insert(edge.target, (current, self.nodes.get(&edge.target).cloned()));
+                    if let std::collections::hash_map::Entry::Vacant(e) = visited.entry(edge.target) {
+                        e.insert((current, self.nodes.get(&edge.target).cloned()));
                         queue.push_back(edge.target);
                     }
                 }

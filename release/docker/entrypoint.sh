@@ -45,12 +45,24 @@ case "$COMMAND" in
         exec /bin/sh
         ;;
 
+    backup)
+        echo "Creating backup..."
+        BACKUP_DIR="${BACKUP_DIR:-/data/backups}"
+        mkdir -p "$BACKUP_DIR"
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        BACKUP_FILE="$BACKUP_DIR/synton-db-backup-$TIMESTAMP.tar.gz"
+        tar -czf "$BACKUP_FILE" -C /data rocksdb
+        echo "Backup created: $BACKUP_FILE"
+        ls -lh "$BACKUP_FILE"
+        ;;
+
     *)
         echo "Unknown command: $COMMAND"
         echo "Available commands:"
         echo "  server   - Start the SYNTON-DB server (default)"
         echo "  validate - Validate configuration"
         echo "  shell    - Start an interactive shell"
+        echo "  backup   - Create a backup of the data directory"
         exit 1
         ;;
 esac

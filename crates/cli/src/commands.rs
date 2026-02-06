@@ -284,7 +284,7 @@ pub async fn execute_import(
                     failed += 1;
                     eprintln!("Failed to create node: {}", e);
                     if !continue_on_error {
-                        return Err(e.into());
+                        return Err(e);
                     }
                 }
             }

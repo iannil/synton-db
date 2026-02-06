@@ -24,6 +24,16 @@ struct LocalEmbeddingBackendInner {
     config: LocalModelConfig,
     cache: Arc<RwLock<lru::LruCache<String, Vec<f32>>>>,
     dimension: usize,
+    #[cfg(feature = "candle")]
+    model: Arc<RwLock<Option<LoadedModel>>>,
+}
+
+/// Loaded model with runtime components.
+#[cfg(feature = "candle")]
+struct LoadedModel {
+    model: candle_transformers::models::bert::BertModel,
+    tokenizer: tokenizers::Tokenizer,
+    device: candle_core::Device,
 }
 
 impl LocalEmbeddingBackend {
@@ -50,9 +60,34 @@ impl LocalEmbeddingBackend {
             config,
             cache,
             dimension,
+            #[cfg(feature = "candle")]
+            model: Arc::new(RwLock::new(None)),
         });
 
         Ok(Self { inner })
+    }
+
+    /// Ensure the model is loaded (lazy loading).
+    #[cfg(feature = "candle")]
+    async fn ensure_model_loaded(&self) -> Result<()> {
+        let mut model_guard = self.inner.model.write().await;
+        if model_guard.is_some() {
+            return Ok(());
+        }
+
+        // Load the model
+        let loader = crate::loader::ModelLoader::new();
+        let loaded = loader.load_embedding_model(&self.inner.config.model_name).await?;
+
+        *model_guard = Some(LoadedModel {
+            model: match loaded.model {
+                crate::loader::ModelWrapper::Bert(m) => m,
+            },
+            tokenizer: loaded.tokenizer,
+            device: loaded.device,
+        });
+
+        Ok(())
     }
 
     /// Get the expected embedding dimension for a model.
@@ -189,22 +224,85 @@ impl EmbeddingBackend for LocalEmbeddingBackend {
 #[cfg(feature = "candle")]
 impl LocalEmbeddingBackend {
     async fn embed_with_candle(&self, text: &str) -> Result<Vec<f32>> {
-        // This is a placeholder implementation.
-        // In a full implementation, this would:
-        // 1. Load the Candle model and tokenizer
-        // 2. Tokenize the input text
-        // 3. Run the model forward pass
-        // 4. Return mean-pooled embeddings
+        // Ensure model is loaded
+        self.ensure_model_loaded().await?;
 
-        // For now, return a mock embedding for testing the infrastructure
-        tracing::warn!("Using mock embedding implementation. Candle integration pending.");
-        Ok(vec![0.0f32; self.inner.dimension])
+        let model_guard = self.inner.model.read().await;
+        let model = model_guard.as_ref().unwrap();
+
+        // Tokenize input
+        let tokens = model
+            .tokenizer
+            .encode(text, true)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Tokenization failed: {}", e)))?;
+
+        let ids = tokens.get_ids();
+
+        if ids.is_empty() {
+            return Err(MlError::EmptyInput);
+        }
+
+        // Create input tensor
+        let input_ids = candle_core::Tensor::from_vec(ids.to_vec(), (1, ids.len()), &model.device)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to create input tensor: {}", e)))?;
+
+        // Create attention mask
+        let attention_mask = candle_core::Tensor::ones(
+            (1, ids.len()),
+            candle_core::DType::U8,
+            &model.device,
+        )
+        .map_err(|e| MlError::EmbeddingFailed(format!("Failed to create attention mask: {}", e)))?;
+
+        // Run the model
+        let embeddings = model
+            .model
+            .forward(&input_ids, &attention_mask)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Model forward pass failed: {}", e)))?;
+
+        // Mean pooling
+        let pooled = self.mean_pool(&embeddings, &attention_mask)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Mean pooling failed: {}", e)))?;
+
+        // Convert to Vec<f32>
+        let result = pooled
+            .to_vec1()
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to convert embedding: {}", e)))?;
+
+        Ok(result)
     }
 
     async fn embed_batch_with_candle(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        // Placeholder implementation for batch embedding
-        tracing::warn!("Using mock batch embedding implementation. Candle integration pending.");
-        Ok(texts.iter().map(|_| vec![0.0f32; self.inner.dimension]).collect())
+        // For simplicity, process individually for now
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.embed_with_candle(text).await?);
+        }
+        Ok(results)
+    }
+
+    /// Mean pooling with attention mask.
+    fn mean_pool(
+        &self,
+        embeddings: &candle_core::Tensor,
+        attention_mask: &candle_core::Tensor,
+    ) -> Result<candle_core::Tensor> {
+        use candle_core::{DType, Device, Tensor};
+
+        // Expand attention mask to match embedding dimensions
+        let mask = attention_mask
+            .to_dtype(DType::F32, embeddings.device())?
+            .unsqueeze(2)?;
+
+        // Multiply embeddings by mask and sum
+        let sum = (embeddings * mask)?.sum(1)?;
+
+        // Count non-padding tokens
+        let count = mask.sum(1)?.clamp(1.0, f32::MAX)?;
+
+        // Mean pooling
+        let pooled = (sum / count.unsqueeze(1)?)?;
+        Ok(pooled)
     }
 }
 

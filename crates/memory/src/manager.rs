@@ -5,14 +5,13 @@
 use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
-use chrono::Duration as ChronoDuration;
 
 use crate::{
     config::DecayConfig,
     decay::{DecayCalculator, DecayCurve},
     error::{MemoryError, MemoryResult},
 };
-use synton_core::{Node, NodeType, Source};
+use synton_core::Node;
 
 /// Statistics about memory state.
 #[derive(Debug, Clone, PartialEq)]
@@ -295,7 +294,7 @@ impl MemoryManager {
         &mut self,
         interval: Duration,
     ) -> tokio::task::JoinHandle<()> {
-        let mut nodes_map = std::mem::take(&mut self.nodes);
+        let nodes_map = std::mem::take(&mut self.nodes);
 
         tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(interval);

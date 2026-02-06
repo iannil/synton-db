@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use uuid::Uuid;
 
-use crate::{StorageError, StorageResult};
+use crate::StorageResult;
 use synton_core::{Edge, Filter, Node};
 
 /// Column family names for RocksDB storage.

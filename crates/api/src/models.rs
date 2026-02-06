@@ -302,6 +302,38 @@ pub struct BulkOperationResponse {
     pub errors: Vec<String>,
 }
 
+/// Hybrid search request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HybridSearchRequest {
+    /// Query string.
+    pub query: String,
+
+    /// Maximum number of results.
+    #[serde(default = "default_k")]
+    pub k: usize,
+}
+
+fn default_k() -> usize {
+    10
+}
+
+impl HybridSearchRequest {
+    /// Create a new hybrid search request.
+    pub fn new(query: String, k: usize) -> Self {
+        Self { query, k }
+    }
+}
+
+/// Hybrid search response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HybridSearchResponse {
+    /// Retrieved nodes.
+    pub nodes: Vec<Node>,
+
+    /// Number of results.
+    pub count: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

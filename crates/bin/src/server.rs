@@ -12,6 +12,7 @@ use tracing::{error, info, warn};
 
 use crate::config::Config;
 use synton_api::SyntonDbService;
+use synton_storage::rocksdb::{RocksdbConfig, RocksdbStore};
 
 #[cfg(feature = "ml")]
 use synton_ml::{BackendType, EmbeddingConfig, EmbeddingService};
@@ -60,7 +61,27 @@ impl ServerHandle {
 pub fn start_servers(
     config: &Config,
 ) -> Result<(ServerHandle, oneshot::Sender<()>), Box<dyn std::error::Error>> {
-    // Initialize service with optional ML support
+    // Initialize persistent storage if enabled
+    let store = if config.storage.rocksdb_path.as_os_str().is_empty() {
+        info!("Persistent storage disabled.");
+        None
+    } else {
+        match init_persistent_store(config) {
+            Ok(store) => {
+                info!(
+                    "Persistent storage initialized: {}",
+                    config.storage.rocksdb_path.display()
+                );
+                Some(Arc::new(store))
+            }
+            Err(e) => {
+                warn!("Failed to initialize persistent storage: {}. Running without persistence.", e);
+                None
+            }
+        }
+    };
+
+    // Initialize service with optional ML support and persistent storage
     #[cfg(feature = "ml")]
     let service = {
         if config.ml.enabled {
@@ -71,16 +92,31 @@ pub fn start_servers(
                         embedding.backend_type(),
                         embedding.dimension()
                     );
-                    Arc::new(SyntonDbService::with_embedding(embedding))
+                    if let Some(store) = store {
+                        Arc::new(SyntonDbService::with_store_and_embedding(
+                            store,
+                            embedding,
+                        ))
+                    } else {
+                        Arc::new(SyntonDbService::with_embedding(embedding))
+                    }
                 }
                 Err(e) => {
                     warn!("Failed to initialize ML service: {}. Running without embeddings.", e);
-                    Arc::new(SyntonDbService::new())
+                    if let Some(store) = store {
+                        Arc::new(SyntonDbService::with_store(store))
+                    } else {
+                        Arc::new(SyntonDbService::new())
+                    }
                 }
             }
         } else {
             info!("ML features disabled. Running without embeddings.");
-            Arc::new(SyntonDbService::new())
+            if let Some(store) = store {
+                Arc::new(SyntonDbService::with_store(store))
+            } else {
+                Arc::new(SyntonDbService::new())
+            }
         }
     };
 
@@ -89,8 +125,20 @@ pub fn start_servers(
         if config.ml.enabled {
             info!("ML features requested but ML feature is not enabled. Recompile with --features ml to enable.");
         }
-        Arc::new(SyntonDbService::new())
+        if let Some(store) = store {
+            Arc::new(SyntonDbService::with_store(store))
+        } else {
+            Arc::new(SyntonDbService::new())
+        }
     };
+
+    // Initialize service data from storage
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        if let Err(e) = service.initialize_from_store().await {
+            warn!("Failed to initialize service from storage: {}", e);
+        }
+    });
 
     let grpc_handle = maybe_start_grpc(config, service.clone())?;
     let rest_handle = maybe_start_rest(config, service)?;
@@ -99,6 +147,39 @@ pub fn start_servers(
     let handle = ServerHandle::new(grpc_handle, rest_handle);
 
     Ok((handle, shutdown_tx))
+}
+
+/// Initialize the persistent storage backend.
+fn init_persistent_store(config: &Config) -> Result<RocksdbStore, Box<dyn std::error::Error>> {
+    // Ensure the parent directory exists
+    if let Some(parent) = config.storage.rocksdb_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Convert path to string, handling invalid UTF-8 gracefully
+    let path = config
+        .storage
+        .rocksdb_path
+        .to_str()
+        .ok_or_else(|| {
+            format!(
+                "RocksDB path contains invalid UTF-8: {:?}",
+                config.storage.rocksdb_path
+            )
+        })?
+        .to_string();
+
+    let rocksdb_config = RocksdbConfig {
+        path,
+        write_buffer_size: config.storage.cache_size_mb * 1024 * 1024,
+        max_write_buffers: 4,
+        max_background_jobs: 4,
+        create_if_missing: true,
+        create_missing_column_families: true,
+        compression: synton_storage::rocksdb::RocksdbCompression::Lz4,
+    };
+
+    RocksdbStore::open(rocksdb_config).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
 
 /// Initialize the embedding service from configuration.
@@ -211,6 +292,7 @@ fn maybe_start_rest(
             .route("/edges", axum::routing::post(synton_api::rest::add_edge))
             .route("/query", axum::routing::post(synton_api::rest::query))
             .route("/traverse", axum::routing::post(synton_api::rest::traverse))
+            .route("/hybrid_search", axum::routing::post(synton_api::rest::hybrid_search))
             .route("/bulk", axum::routing::post(synton_api::rest::bulk_operation))
             .with_state(state)
             .layer(
