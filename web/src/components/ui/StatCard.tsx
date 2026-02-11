@@ -2,6 +2,9 @@
  * Stat card component for dashboard metrics.
  */
 
+import { Card } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -15,11 +18,11 @@ interface StatCardProps {
 }
 
 const colorStyles = {
-  blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
-  purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
-  green: 'from-green-500/20 to-green-600/10 border-green-500/30',
-  orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
-  red: 'from-red-500/20 to-red-600/10 border-red-500/30',
+  blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 hover:bg-blue-500/10',
+  purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30 hover:bg-purple-500/10',
+  green: 'from-green-500/20 to-green-600/10 border-green-500/30 hover:bg-green-500/10',
+  orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30 hover:bg-orange-500/10',
+  red: 'from-red-500/20 to-red-600/10 border-red-500/30 hover:bg-red-500/10',
 };
 
 export function StatCard({
@@ -31,11 +34,11 @@ export function StatCard({
   onClick,
 }: StatCardProps): JSX.Element {
   return (
-    <div
-      className={clsx(
-        'card card-hover relative overflow-hidden bg-gradient-to-br',
+    <Card
+      className={cn(
+        'relative overflow-hidden bg-gradient-to-br border transition-all',
         colorStyles[color],
-        onClick && 'cursor-pointer'
+        onClick && 'cursor-pointer hover:scale-[1.02]'
       )}
       onClick={onClick}
     >
@@ -43,7 +46,7 @@ export function StatCard({
       <div className="absolute -right-4 -top-4 text-8xl opacity-10">{icon}</div>
 
       {/* Content */}
-      <div className="relative">
+      <div className="relative p-6">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-medium text-gray-400 uppercase tracking-wide">
@@ -57,7 +60,7 @@ export function StatCard({
         {trend && (
           <div className="mt-4 flex items-center gap-2 text-sm">
             <span
-              className={clsx(
+              className={cn(
                 'flex items-center gap-1',
                 trend.isPositive ? 'text-green-400' : 'text-red-400'
               )}
@@ -69,7 +72,7 @@ export function StatCard({
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -89,7 +92,7 @@ export function QuickAction({
   return (
     <button
       onClick={onClick}
-      className={clsx(
+      className={cn(
         'flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br border border-white/10',
         'hover:scale-105 transition-transform',
         colorStyles[color]
@@ -99,8 +102,4 @@ export function QuickAction({
       <span className="text-sm font-medium text-white">{label}</span>
     </button>
   );
-}
-
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
 }

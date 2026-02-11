@@ -39,7 +39,7 @@ export function NodeInspector({ nodeId, onClose }: NodeInspectorProps): JSX.Elem
             start_id: nodeId,
             max_depth: 1,
             max_nodes: 100,
-            direction: 'both',
+            direction: 'Both',
           });
 
           setOutgoingEdges(traverseResponse.edges.filter((e) => e.source === nodeId));

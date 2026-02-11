@@ -7,6 +7,22 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import type { DatabaseStats, HealthResponse, Node } from '@/types/api';
 import { StatCard, QuickAction } from '@/components/ui';
+import { Card, CardContent, Badge, Skeleton } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
+const NODE_TYPE_ICONS: Record<string, string> = {
+  entity: '🏢',
+  concept: '💡',
+  fact: '✓',
+  raw_chunk: '📄',
+};
+
+const NODE_TYPE_COLORS: Record<string, string> = {
+  entity: 'bg-blue-500/20 text-blue-400',
+  concept: 'bg-purple-500/20 text-purple-400',
+  fact: 'bg-green-500/20 text-green-400',
+  raw_chunk: 'bg-gray-500/20 text-gray-400',
+};
 
 export function Dashboard(): JSX.Element {
   const navigate = useNavigate();
@@ -52,7 +68,7 @@ export function Dashboard(): JSX.Element {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="spinner" />
+        <Skeleton className="h-64 w-96" />
       </div>
     );
   }
@@ -61,18 +77,11 @@ export function Dashboard(): JSX.Element {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-red-400 text-lg">{error}</p>
+          <p className="text-destructive text-lg">{error}</p>
         </div>
       </div>
     );
   }
-
-  const nodeTypeCounts = stats
-    ? recentNodes.reduce((acc, node) => {
-        acc[node.node_type] = (acc[node.node_type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>)
-    : {};
 
   return (
     <div className="space-y-6">
@@ -145,89 +154,84 @@ export function Dashboard(): JSX.Element {
       )}
 
       {/* Quick Actions */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <QuickAction
-            label="Add Node"
-            icon="➕"
-            color="blue"
-            onClick={() => navigate('/nodes?action=create')}
-          />
-          <QuickAction
-            label="Add Edge"
-            icon="🔗"
-            color="purple"
-            onClick={() => navigate('/edges?action=create')}
-          />
-          <QuickAction
-            label="Query"
-            icon="🔍"
-            color="green"
-            onClick={() => navigate('/query')}
-          />
-          <QuickAction
-            label="Graph View"
-            icon="🕸️"
-            color="orange"
-            onClick={() => navigate('/graph')}
-          />
-        </div>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <QuickAction
+              label="Add Node"
+              icon="➕"
+              color="blue"
+              onClick={() => navigate('/nodes?action=create')}
+            />
+            <QuickAction
+              label="Add Edge"
+              icon="🔗"
+              color="purple"
+              onClick={() => navigate('/edges?action=create')}
+            />
+            <QuickAction
+              label="Query"
+              icon="🔍"
+              color="green"
+              onClick={() => navigate('/query')}
+            />
+            <QuickAction
+              label="Graph View"
+              icon="🕸️"
+              color="orange"
+              onClick={() => navigate('/graph')}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Nodes */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Recent Nodes</h2>
-          <button
-            onClick={() => navigate('/nodes')}
-            className="text-sm text-[#e94560] hover:text-[#d63850] transition-colors"
-          >
-            View All →
-          </button>
-        </div>
-
-        {recentNodes.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No nodes yet. Create your first node!</p>
-        ) : (
-          <div className="space-y-3">
-            {recentNodes.map((node) => (
-              <div
-                key={node.id}
-                className="flex items-center gap-4 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                onClick={() => navigate(`/nodes/${node.id}`)}
-              >
-                <div className={clsx('w-10 h-10 rounded-full flex items-center justify-center', {
-                  'bg-blue-500/20': node.node_type === 'entity',
-                  'bg-purple-500/20': node.node_type === 'concept',
-                  'bg-green-500/20': node.node_type === 'fact',
-                  'bg-gray-500/20': node.node_type === 'raw_chunk',
-                })}>
-                  <span className="text-lg">
-                    {node.node_type === 'entity' && '🏢'}
-                    {node.node_type === 'concept' && '💡'}
-                    {node.node_type === 'fact' && '✓'}
-                    {node.node_type === 'raw_chunk' && '📄'}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium truncate">{node.content}</p>
-                  <p className="text-sm text-gray-500">
-                    {new Date(node.meta.created_at).toLocaleString()}
-                  </p>
-                </div>
-                <span className={clsx('badge', `badge-${node.node_type}`)}>
-                  {node.node_type}
-                </span>
-              </div>
-            ))}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Recent Nodes</h2>
+            <button
+              onClick={() => navigate('/nodes')}
+              className="text-sm text-primary hover:underline"
+            >
+              View All →
+            </button>
           </div>
-        )}
-      </div>
+
+          {recentNodes.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No nodes yet. Create your first node!</p>
+          ) : (
+            <div className="space-y-3">
+              {recentNodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/nodes/${node.id}`)}
+                >
+                  <div className={cn(
+                    'w-10 h-10 rounded-full flex items-center justify-center',
+                    NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
+                  )}>
+                    <span className="text-lg">
+                      {NODE_TYPE_ICONS[node.node_type] || '📄'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium truncate">{node.content}</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(node.meta.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {node.node_type}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
 }

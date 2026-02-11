@@ -6,7 +6,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import type { Node, HybridSearchResponse, QueryResponse } from '@/types/api';
-import { Button, Textarea, Select } from '@/components/ui';
+import { Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Alert, AlertDescription, Badge, Label } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { ChevronRight } from 'lucide-react';
 
 const QUERY_HISTORY_KEY = 'syntondb_query_history';
 
@@ -14,6 +16,20 @@ const SEARCH_TYPES = [
   { value: 'hybrid', label: 'GraphRAG Hybrid Search' },
   { value: 'text', label: 'Text Query' },
 ];
+
+const NODE_TYPE_ICONS: Record<string, string> = {
+  entity: '🏢',
+  concept: '💡',
+  fact: '✓',
+  raw_chunk: '📄',
+};
+
+const NODE_TYPE_COLORS: Record<string, string> = {
+  entity: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  concept: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  fact: 'bg-green-500/20 text-green-400 border-green-500/30',
+  raw_chunk: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+};
 
 export function Query(): JSX.Element {
   const navigate = useNavigate();
@@ -95,85 +111,92 @@ export function Query(): JSX.Element {
       </div>
 
       {/* Search Form */}
-      <div className="card space-y-4">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Search Type
-            </label>
-            <Select
-              options={SEARCH_TYPES}
-              value={searchType}
-              onChange={(e) => setSearchType(e.target.value as 'hybrid' | 'text')}
-              fullWidth
-            />
-          </div>
-          <div className="w-32">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Results
-            </label>
-            <Select
-              options={[
-                { value: '5', label: '5' },
-                { value: '10', label: '10' },
-                { value: '20', label: '20' },
-                { value: '50', label: '50' },
-                { value: '100', label: '100' },
-              ]}
-              value={limit.toString()}
-              onChange={(e) => setLimit(parseInt(e.target.value))}
-              fullWidth
-            />
-          </div>
-        </div>
-
-        <div>
-          <Textarea
-            placeholder="Enter your query... (Cmd/Ctrl + Enter to search)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyPress}
-            rows={3}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Example: "Find all nodes related to artificial intelligence"
-          </p>
-        </div>
-
-        <div className="flex justify-between items-center">
-          <Button onClick={handleSearch} isLoading={isLoading}>
-            Search
-          </Button>
-          {queryHistory.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Recent:</span>
-              <div className="flex flex-wrap gap-2">
-                {queryHistory.slice(0, 3).map((h, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setQuery(h)}
-                    className="text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                  >
-                    {h.length > 30 ? h.slice(0, 30) + '...' : h}
-                  </button>
-                ))}
-              </div>
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="search-type">Search Type</Label>
+              <Select value={searchType} onValueChange={(value) => setSearchType(value as 'hybrid' | 'text')}>
+                <SelectTrigger id="search-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEARCH_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div className="w-32">
+              <Label htmlFor="limit">Results</Label>
+              <Select value={limit.toString()} onValueChange={(value) => setLimit(parseInt(value))}>
+                <SelectTrigger id="limit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['5', '10', '20', '50', '100'].map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="query">Query</Label>
+            <Textarea
+              id="query"
+              placeholder="Enter your query... (Cmd/Ctrl + Enter to search)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyPress}
+              rows={3}
+              className="mt-1.5"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Example: "Find all nodes related to artificial intelligence"
+            </p>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <Button onClick={handleSearch} disabled={isLoading}>
+              {isLoading ? 'Searching...' : 'Search'}
+            </Button>
+            {queryHistory.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Recent:</span>
+                <div className="flex flex-wrap gap-2">
+                  {queryHistory.slice(0, 3).map((h, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setQuery(h)}
+                      className="text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    >
+                      {h.length > 30 ? h.slice(0, 30) + '...' : h}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Error */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400">
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Results Summary */}
       {results.length > 0 && (
-        <div className="card">
-          <div className="flex items-center justify-between">
+        <Card>
+          <CardContent className="py-4">
             <p className="text-gray-300">
               Found <span className="font-semibold text-white">{totalCount}</span> results
               {executionTime && (
@@ -182,74 +205,62 @@ export function Query(): JSX.Element {
                 </span>
               )}
             </p>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Results List */}
       {results.length === 0 && !isLoading && !error && (
-        <div className="card text-center py-12">
-          <p className="text-gray-500 text-lg">
-            Enter a query above to search the database.
-          </p>
-        </div>
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-gray-500 text-lg">
+              Enter a query above to search the database.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {results.length > 0 && (
         <div className="space-y-3">
           {results.map((node) => (
-            <div
+            <Card
               key={node.id}
-              className="card card-hover cursor-pointer"
+              className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate(`/nodes/${node.id}`)}
             >
-              <div className="flex items-start gap-4">
-                <div className={clsx('w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0', {
-                  'bg-blue-500/20': node.node_type === 'entity',
-                  'bg-purple-500/20': node.node_type === 'concept',
-                  'bg-green-500/20': node.node_type === 'fact',
-                  'bg-gray-500/20': node.node_type === 'raw_chunk',
-                })}>
-                  <span className="text-2xl">
-                    {node.node_type === 'entity' && '🏢'}
-                    {node.node_type === 'concept' && '💡'}
-                    {node.node_type === 'fact' && '✓'}
-                    {node.node_type === 'raw_chunk' && '📄'}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={clsx('badge', `badge-${node.node_type}`)}>
-                      {node.node_type}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {(node.meta.confidence * 100).toFixed(0)}% confidence
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  <div className={cn(
+                    'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border',
+                    NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
+                  )}>
+                    <span className="text-2xl">
+                      {NODE_TYPE_ICONS[node.node_type] || '📄'}
                     </span>
                   </div>
-                  <p className="text-white line-clamp-2">{node.content}</p>
-                  {node.meta.access_score > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Access score: {node.meta.access_score.toFixed(2)}
-                    </p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {node.node_type}
+                      </Badge>
+                      <span className="text-xs text-gray-500">
+                        {(node.meta.confidence * 100).toFixed(0)}% confidence
+                      </span>
+                    </div>
+                    <p className="text-white line-clamp-2">{node.content}</p>
+                    {node.meta.access_score > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Access score: {node.meta.access_score.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-500 flex-shrink-0" />
                 </div>
-                <svg
-                  className="w-5 h-5 text-gray-500 flex-shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
     </div>
   );
-}
-
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
 }

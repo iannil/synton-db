@@ -7,7 +7,20 @@ import { api } from '@/services/api';
 import type { Node, Edge, NodeType } from '@/types/api';
 import { GraphViewer } from '@/components/graph/GraphViewer';
 import { NodeInspector } from '@/components/graph/NodeInspector';
-import { Select, Button } from '@/components/ui';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  Skeleton,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 const NODE_TYPES: Array<{ value: NodeType | 'all'; label: string }> = [
   { value: 'all', label: 'All Types' },
@@ -50,7 +63,7 @@ export function Graph(): JSX.Element {
               start_id: node.id,
               max_depth: 1,
               max_nodes: 100,
-              direction: 'forward',
+              direction: 'Forward',
             });
             edgesData.push(...traverseData.edges);
           } catch {
@@ -109,7 +122,7 @@ export function Graph(): JSX.Element {
         start_id: nodeId,
         max_depth: maxDepth,
         max_nodes: 100,
-        direction: 'both',
+        direction: 'Both',
       });
 
       // Add new nodes and edges
@@ -143,61 +156,67 @@ export function Graph(): JSX.Element {
       </div>
 
       {/* Filters */}
-      <div className="card">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Search nodes
-            </label>
-            <input
-              type="text"
-              placeholder="Search by content..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-[#0f3460] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#e94560] focus:border-transparent"
-            />
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="search">Search nodes</Label>
+              <Input
+                id="search"
+                type="text"
+                placeholder="Search by content..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="w-48">
+              <Label htmlFor="type">Filter by type</Label>
+              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as NodeType | 'all')}>
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NODE_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Label htmlFor="depth">Traverse depth</Label>
+              <Select value={maxDepth.toString()} onValueChange={(value) => setMaxDepth(parseInt(value))}>
+                <SelectTrigger id="depth">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 hop</SelectItem>
+                  <SelectItem value="2">2 hops</SelectItem>
+                  <SelectItem value="3">3 hops</SelectItem>
+                  <SelectItem value="4">4 hops</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="w-48">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Filter by type
-            </label>
-            <Select
-              options={NODE_TYPES}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as NodeType | 'all')}
-            />
-          </div>
-          <div className="w-48">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Traverse depth
-            </label>
-            <Select
-              options={[
-                { value: '1', label: '1 hop' },
-                { value: '2', label: '2 hops' },
-                { value: '3', label: '3 hops' },
-                { value: '4', label: '4 hops' },
-              ]}
-              value={maxDepth.toString()}
-              onChange={(e) => setMaxDepth(parseInt(e.target.value))}
-            />
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Graph */}
       {isLoading ? (
         <div className="flex justify-center items-center" style={{ height: '600px' }}>
-          <div className="spinner" />
+          <Skeleton className="h-64 w-96" />
         </div>
       ) : (
-        <GraphViewer
-          nodes={filteredNodes}
-          edges={filteredEdges}
-          onNodeClick={handleNodeClick}
-          selectedNodeId={selectedNodeId ?? undefined}
-          height="calc(100vh - 320px)"
-        />
+        <Card>
+          <GraphViewer
+            nodes={filteredNodes}
+            edges={filteredEdges}
+            onNodeClick={handleNodeClick}
+            selectedNodeId={selectedNodeId ?? undefined}
+            height="calc(100vh - 320px)"
+          />
+        </Card>
       )}
 
       {/* Node Inspector Sidebar */}

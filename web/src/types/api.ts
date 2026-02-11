@@ -202,7 +202,7 @@ export interface HybridSearchResponse {
 /**
  * Direction for graph traversal.
  */
-export type TraverseDirection = 'forward' | 'backward' | 'both';
+export type TraverseDirection = 'Forward' | 'Backward' | 'Both';
 
 /**
  * Request for graph traversal.

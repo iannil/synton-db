@@ -45,6 +45,16 @@ WEB_SERVER_PORT="${SYNTON_WEB_PORT:-5173}"
 PROMETHEUS_PORT="${SYNTON_PROMETHEUS_PORT:-5572}"
 GRAFANA_PORT="${SYNTON_GRAFANA_PORT:-5573}"
 
+# Docker Compose 命令
+if command -v docker compose &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
+    DOCKER_COMPOSE="docker-compose"
+fi
+
+# 服务列表（用于日志查看）
+DOCKER_SERVICES=("synton-db" "prometheus" "grafana" "web")
+
 # 运行模式: docker 或 local
 SYNTON_MODE="${SYNTON_MODE:-local}"
 
@@ -261,6 +271,7 @@ show_status() {
         echo -e "${CYAN}Ports:${NC}"
         get_port_status "$REST_PORT" "REST API"
         get_port_status "$GRPC_PORT" "gRPC"
+        get_port_status "$WEB_SERVER_PORT" "Web UI"
         get_port_status "$PROMETHEUS_PORT" "Prometheus"
         get_port_status "$GRAFANA_PORT" "Grafana"
     fi
@@ -408,6 +419,7 @@ cmd_start_docker() {
     echo ""
     echo -e "  REST API:    ${BLUE}http://localhost:$REST_PORT${NC}"
     echo -e "  gRPC:        ${BLUE}localhost:$GRPC_PORT${NC}"
+    echo -e "  Web UI:      ${BLUE}http://localhost:$WEB_SERVER_PORT${NC}"
     echo -e "  Prometheus:  ${BLUE}http://localhost:$PROMETHEUS_PORT${NC}"
     echo -e "  Grafana:     ${BLUE}http://localhost:$GRAFANA_PORT${NC} (admin/admin)"
     echo ""
@@ -842,9 +854,8 @@ Description:
   - Run mode controlled by SYNTON_MODE env var (default: local)
   - Local mode (local): Directly run compiled binaries
   - Docker mode (docker): Use Docker Compose to run services
-  - Web UI (React + Vite) starts automatically in local mode
+  - Web UI (React + Vite) starts automatically in both modes
   - MCP server uses stdio, runs directly from clients like Claude Code
-  - mcp         启动 MCP 服务器 (调试用)
 
 Environment Variables:
   SYNTON_MODE              Run mode: local or docker (default: local)
@@ -857,6 +868,7 @@ Examples:
   $0 status                     # Show service status
   $0 logs db-server             # View specific service logs (local)
   $0 logs synton-db             # View specific service logs (Docker)
+  $0 logs web                   # View web service logs (all modes)
   $0 mcp                        # Manual MCP test (debug only)
   SYNTON_MODE=docker $0 start   # Use Docker mode
 ================================

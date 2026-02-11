@@ -18,35 +18,35 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/health': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/stats': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/nodes': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/edges': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/query': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/hybrid_search': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/traverse': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
       '/bulk': {
-        target: 'http://localhost:5578',
+        target: 'http://localhost:5570',
         changeOrigin: true,
       },
     },

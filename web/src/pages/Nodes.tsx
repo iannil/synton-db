@@ -6,7 +6,37 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/services/api';
 import type { Node, NodeType } from '@/types/api';
-import { Button, Input, Select, Modal, ConfirmModal } from '@/components/ui';
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Card,
+  CardContent,
+  Badge,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Alert,
+  AlertDescription,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Label,
+  Textarea,
+  Skeleton,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Trash2, Eye } from 'lucide-react';
 
 const NODE_TYPES: Array<{ value: NodeType; label: string }> = [
   { value: 'entity', label: 'Entity' },
@@ -16,6 +46,13 @@ const NODE_TYPES: Array<{ value: NodeType; label: string }> = [
 ];
 
 const ITEMS_PER_PAGE = 20;
+
+const NODE_TYPE_BADGE_COLORS: Record<string, string> = {
+  entity: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30',
+  concept: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30',
+  fact: 'bg-green-500/20 text-green-400 hover:bg-green-500/30',
+  raw_chunk: 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30',
+};
 
 export function Nodes(): JSX.Element {
   const navigate = useNavigate();
@@ -31,11 +68,11 @@ export function Nodes(): JSX.Element {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
 
-  // Modals
-  const [createModalOpen, setCreateModalOpen] = useState(
+  // Dialogs
+  const [createDialogOpen, setCreateDialogOpen] = useState(
     searchParams.get('action') === 'create'
   );
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
 
   // New node form
@@ -86,7 +123,7 @@ export function Nodes(): JSX.Element {
     try {
       await api.deleteNode({ id: nodeToDelete.id });
       setNodes(nodes.filter((n) => n.id !== nodeToDelete.id));
-      setDeleteModalOpen(false);
+      setDeleteDialogOpen(false);
       setNodeToDelete(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete node');
@@ -104,7 +141,7 @@ export function Nodes(): JSX.Element {
       });
 
       setNodes([response.node, ...nodes]);
-      setCreateModalOpen(false);
+      setCreateDialogOpen(false);
       setNewNodeContent('');
       setNewNodeType('concept');
     } catch (err) {
@@ -131,128 +168,129 @@ export function Nodes(): JSX.Element {
             {filteredNodes.length} {filteredNodes.length === 1 ? 'node' : 'nodes'}
           </p>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)}>+ Add Node</Button>
+        <Button onClick={() => setCreateDialogOpen(true)}>+ Add Node</Button>
       </div>
 
       {/* Filters */}
-      <div className="card">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <Input
-              placeholder="Search nodes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              fullWidth
-            />
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                placeholder="Search nodes..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="w-48">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {NODE_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="w-48">
-            <Select
-              options={[
-                { value: 'all', label: 'All Types' },
-                ...NODE_TYPES,
-              ]}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Error */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400">
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Loading */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="spinner" />
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
       ) : (
         <>
           {/* Nodes List */}
           {paginatedNodes.length === 0 ? (
-            <div className="card text-center py-12">
-              <p className="text-gray-500 text-lg">
-                {search || typeFilter !== 'all'
-                  ? 'No nodes match your filters.'
-                  : 'No nodes yet. Create your first node!'}
-              </p>
-            </div>
+            <Card>
+              <CardContent className="text-center py-12">
+                <p className="text-gray-500 text-lg">
+                  {search || typeFilter !== 'all'
+                    ? 'No nodes match your filters.'
+                    : 'No nodes yet. Create your first node!'}
+                </p>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="card overflow-hidden p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-white/5">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Content
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Created
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Confidence
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {paginatedNodes.map((node) => (
-                      <tr
-                        key={node.id}
-                        className="hover:bg-white/5 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/nodes/${node.id}`)}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="max-w-md">
-                            <p className="text-white line-clamp-2">{node.content}</p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={clsx('badge', `badge-${node.node_type}`)}>
-                            {node.node_type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {new Date(node.meta.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {(node.meta.confidence * 100).toFixed(0)}%
-                        </td>
-                        <td
-                          className="px-6 py-4 whitespace-nowrap text-right text-sm"
-                          onClick={(e) => e.stopPropagation()}
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Content</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Confidence</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedNodes.map((node) => (
+                    <TableRow
+                      key={node.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/nodes/${node.id}`)}
+                    >
+                      <TableCell>
+                        <div className="max-w-md">
+                          <p className="text-white line-clamp-2">{node.content}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={NODE_TYPE_BADGE_COLORS[node.node_type] || NODE_TYPE_BADGE_COLORS.raw_chunk}
                         >
-                          <button
+                          {node.node_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-400">
+                        {new Date(node.meta.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-gray-400">
+                        {(node.meta.confidence * 100).toFixed(0)}%
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => navigate(`/nodes/${node.id}`)}
-                            className="text-blue-400 hover:text-blue-300 mr-3"
                           >
-                            View
-                          </button>
-                          <button
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                               setNodeToDelete(node);
-                              setDeleteModalOpen(true);
+                              setDeleteDialogOpen(true);
                             }}
-                            className="text-red-400 hover:text-red-300"
                           >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           )}
 
           {/* Pagination */}
@@ -265,7 +303,7 @@ export function Nodes(): JSX.Element {
               </p>
               <div className="flex gap-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   disabled={page === 1}
                   onClick={() => setPage(page - 1)}
@@ -273,7 +311,7 @@ export function Nodes(): JSX.Element {
                   Previous
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   disabled={page === totalPages}
                   onClick={() => setPage(page + 1)}
@@ -286,66 +324,78 @@ export function Nodes(): JSX.Element {
         </>
       )}
 
-      {/* Create Modal */}
-      <Modal
-        isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        title="Create Node"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreateModalOpen(false)}>
+      {/* Create Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Node</DialogTitle>
+            <DialogDescription>
+              Add a new node to the knowledge graph.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="content">Content</Label>
+              <Textarea
+                id="content"
+                value={newNodeContent}
+                onChange={(e) => setNewNodeContent(e.target.value)}
+                placeholder="Enter node content..."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Select value={newNodeType} onValueChange={(value) => setNewNodeType(value as NodeType)}>
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NODE_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} isLoading={isCreating}>
-              Create
+            <Button onClick={handleCreate} disabled={isCreating}>
+              {isCreating ? 'Creating...' : 'Create'}
             </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Content
-            </label>
-            <textarea
-              value={newNodeContent}
-              onChange={(e) => setNewNodeContent(e.target.value)}
-              placeholder="Enter node content..."
-              rows={4}
-              className="w-full px-4 py-2 rounded-lg bg-[#0f3460] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#e94560] focus:border-transparent resize-vertical"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Type
-            </label>
-            <Select
-              options={NODE_TYPES}
-              value={newNodeType}
-              onChange={(e) => setNewNodeType(e.target.value as NodeType)}
-              fullWidth
-            />
-          </div>
-        </div>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setNodeToDelete(null);
-        }}
-        onConfirm={handleDelete}
-        title="Delete Node"
-        message={`Are you sure you want to delete this node? This action cannot be undone.`}
-        confirmText="Delete"
-        variant="danger"
-      />
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setNodeToDelete(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Node</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this node? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDeleteDialogOpen(false);
+              setNodeToDelete(null);
+            }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
-
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
 }
