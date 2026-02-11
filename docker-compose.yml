@@ -2,8 +2,6 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 
-version: "3.9"
-
 services:
   ###################################
   # SYNTON-DB Main Service
@@ -12,26 +10,28 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: synton-db
     image: synton-db:latest
     container_name: synton-db
     restart: unless-stopped
     ports:
-      - "50051:50051"  # gRPC
-      - "8080:8080"    # REST API
+      - "5571:5571"  # gRPC
+      - "5570:5570"  # REST API
     volumes:
       - synton-data:/data
       - ./release/docker/config.toml:/etc/synton-db/config.toml:ro
     environment:
       - SYNTON_LOG_LEVEL=info
       - SYNTON_SERVER_HOST=0.0.0.0
-      - SYNTON_SERVER_GRPC_PORT=50051
-      - SYNTON_SERVER_REST_PORT=8080
+      - SYNTON_SERVER_GRPC_PORT=5571
+      - SYNTON_SERVER_REST_PORT=5570
       - SYNTON_STORAGE_ROCKSDB_PATH=/data/rocksdb
       - SYNTON_STORAGE_LANCE_PATH=/data/lance
+      - SYNTON_CONFIG_FILE=/etc/synton-db/config.toml
     networks:
       - synton-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:5570/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,7 +45,7 @@ services:
     container_name: synton-prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "5572:9090"
     volumes:
       - ./release/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -65,7 +65,7 @@ services:
     container_name: synton-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "5573:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./release/docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
@@ -91,3 +91,10 @@ volumes:
     name: synton-prometheus-data
   grafana-data:
     name: synton-grafana-data
+
+# MCP Server Note:
+# The MCP server communicates via stdio (not network ports) and should run on the host machine.
+# Build: cargo build --release -p synton-mcp-server
+# Run:   ./target/release/synton-mcp-server --endpoint http://localhost:5570
+# Configure Claude Code: ~/.config/claude-code/mcp_servers.json
+# See: crates/mcp-server/README.md

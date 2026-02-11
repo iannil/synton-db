@@ -58,7 +58,7 @@ impl ServerHandle {
 /// # Errors
 ///
 /// Returns an error if servers fail to start.
-pub fn start_servers(
+pub async fn start_servers(
     config: &Config,
 ) -> Result<(ServerHandle, oneshot::Sender<()>), Box<dyn std::error::Error>> {
     // Initialize persistent storage if enabled
@@ -85,7 +85,7 @@ pub fn start_servers(
     #[cfg(feature = "ml")]
     let service = {
         if config.ml.enabled {
-            match init_embedding_service(config) {
+            match init_embedding_service(config).await {
                 Ok(embedding) => {
                     info!(
                         "ML embedding service initialized: backend={}, dimension={}",
@@ -133,12 +133,9 @@ pub fn start_servers(
     };
 
     // Initialize service data from storage
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
-        if let Err(e) = service.initialize_from_store().await {
-            warn!("Failed to initialize service from storage: {}", e);
-        }
-    });
+    if let Err(e) = service.initialize_from_store().await {
+        warn!("Failed to initialize service from storage: {}", e);
+    }
 
     let grpc_handle = maybe_start_grpc(config, service.clone())?;
     let rest_handle = maybe_start_rest(config, service)?;
@@ -184,7 +181,7 @@ fn init_persistent_store(config: &Config) -> Result<RocksdbStore, Box<dyn std::e
 
 /// Initialize the embedding service from configuration.
 #[cfg(feature = "ml")]
-fn init_embedding_service(config: &Config) -> Result<Arc<EmbeddingService>, Box<dyn std::error::Error>> {
+async fn init_embedding_service(config: &Config) -> Result<Arc<EmbeddingService>, Box<dyn std::error::Error>> {
     use synton_ml::{ApiConfig, LocalModelConfig};
 
     let backend_type = match config.ml.backend.to_lowercase().as_str() {
@@ -211,8 +208,7 @@ fn init_embedding_service(config: &Config) -> Result<Arc<EmbeddingService>, Box<
         ..Default::default()
     };
 
-    let rt = tokio::runtime::Runtime::new()?;
-    let service = rt.block_on(EmbeddingService::from_config(ml_config))?;
+    let service = EmbeddingService::from_config(ml_config).await?;
     Ok(Arc::new(service))
 }
 

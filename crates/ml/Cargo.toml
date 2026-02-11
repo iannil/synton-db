@@ -23,9 +23,10 @@ reqwest = { version = "0.12", features = ["json"] }
 candle = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 candle-transformers = { workspace = true, optional = true }
+safetensors = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 
 [features]
 default = []
-candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
+candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:safetensors", "dep:tokenizers", "dep:hf-hub"]

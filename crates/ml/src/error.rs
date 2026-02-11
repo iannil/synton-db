@@ -47,6 +47,10 @@ pub enum MlError {
     /// Input too long.
     #[error("Input exceeds maximum length of {max} tokens (got {actual} tokens)")]
     InputTooLong { max: usize, actual: usize },
+
+    /// Embedding generation failed.
+    #[error("Embedding generation failed: {0}")]
+    EmbeddingFailed(String),
 }
 
 impl MlError {

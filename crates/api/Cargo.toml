@@ -16,6 +16,7 @@ categories.workspace = true
 synton-core = { path = "../core" }
 synton-graph = { path = "../graph" }
 synton-graphrag = { path = "../graphrag" }
+synton-chunking = { path = "../chunking" }
 synton-memory = { path = "../memory" }
 synton-paql = { path = "../paql" }
 synton-storage = { path = "../storage" }
@@ -62,11 +63,12 @@ futures = { workspace = true }
 tokio-stream = { workspace = true }
 
 # Tower middleware
-tower-http = { version = "0.5.2", features = ["cors", "trace"] }
+tower-http = { version = "0.5.2", features = ["cors", "trace", "fs"] }
 
 [features]
 default = ["ml"]
 ml = ["dep:synton-ml"]
+candle = ["ml", "synton-ml/candle"]
 
 [dev-dependencies]
 tokio = { workspace = true }

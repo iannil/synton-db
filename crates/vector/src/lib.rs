@@ -8,8 +8,17 @@
 mod error;
 mod index;
 
+#[cfg(feature = "lance")]
+mod lance;
+
 pub use error::{VectorError, VectorResult};
-pub use index::{MemoryVectorIndex, SearchResult, VectorIndex};
+pub use index::{MemoryVectorIndex, SearchResult, VectorIndex, memory_index_dump};
+
+#[cfg(feature = "lance")]
+pub use lance::{
+    HnswParams, IvfParams, IndexType, LanceIndexConfig,
+    LanceVectorIndex, MemoryToLanceMigrator, default_progress_reporter,
+};
 
 /// Re-exports commonly used types
 pub mod prelude {

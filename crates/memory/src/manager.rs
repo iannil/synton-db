@@ -385,7 +385,7 @@ mod tests {
         let mut node = Node::new("Test", NodeType::Concept);
         let id = node.id;
         // Simulate access 1000 hours ago
-        node.meta.accessed_at = Some(chrono::Utc::now() - ChronoDuration::hours(1000));
+        node.meta.accessed_at = Some(chrono::Utc::now() - chrono::Duration::hours(1000));
         node.meta.access_score = 1.0;
 
         manager.register(node).unwrap();

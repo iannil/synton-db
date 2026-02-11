@@ -1,0 +1,41 @@
+# Copyright 2025 SYNTON-DB Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+
+services:
+  synton-db:
+    image: synton-db:latest
+    container_name: synton-db
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    networks:
+      - synton-net
+    volumes:
+      - synton-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  synton-mcp-server:
+    build:
+      context: ../..
+      dockerfile: release/mcp-server/Dockerfile
+    container_name: synton-mcp-server
+    networks:
+      - synton-net
+    depends_on:
+      synton-db:
+        condition: service_healthy
+    environment:
+      SYNTONDB_ENDPOINT: http://synton-db:8080
+      RUST_LOG: info
+
+networks:
+  synton-net:
+    driver: bridge
+
+volumes:
+  synton-data:

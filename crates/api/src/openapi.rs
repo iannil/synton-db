@@ -34,6 +34,7 @@ use uuid::Uuid;
         crate::rest::traverse,
         crate::rest::hybrid_search,
         crate::rest::bulk_operation,
+        crate::rest::ingest_document,
     ),
     components(
         schemas(
@@ -56,6 +57,10 @@ use uuid::Uuid;
             HybridSearchResponse,
             BulkOperationRequest,
             BulkOperationResponse,
+            ChunkingStrategy,
+            ChunkInfo,
+            IngestDocumentRequest,
+            IngestDocumentResponse,
         )
     ),
     tags(
@@ -64,6 +69,7 @@ use uuid::Uuid;
         (name = "edges", description = "Edge management endpoints"),
         (name = "query", description = "Query and search endpoints"),
         (name = "graph", description = "Graph traversal endpoints"),
+        (name = "documents", description = "Document ingestion endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -281,5 +287,88 @@ pub struct BulkOperationResponse {
     pub failure_count: usize,
     /// Error messages
     pub errors: Vec<String>,
+}
+
+/// Chunking strategy schema.
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub enum ChunkingStrategy {
+    /// Fixed-size chunking by character count
+    #[schema(rename = "fixed")]
+    Fixed {
+        /// Target chunk size in characters
+        chunk_size: usize,
+        /// Overlap between chunks
+        overlap: usize,
+    },
+    /// Semantic chunking based on sentence boundaries
+    #[schema(rename = "semantic")]
+    Semantic {
+        /// Minimum chunk size
+        min_chunk_size: usize,
+        /// Maximum chunk size
+        max_chunk_size: usize,
+        /// Boundary threshold (0.0 - 1.0)
+        boundary_threshold: f32,
+    },
+    /// Hierarchical chunking with multiple levels
+    #[schema(rename = "hierarchical")]
+    Hierarchical {
+        /// Include sentence-level chunks
+        include_sentences: bool,
+        /// Include paragraph-level chunks
+        include_paragraphs: bool,
+    },
+}
+
+/// Chunk information schema.
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct ChunkInfo {
+    /// Chunk ID
+    pub id: Uuid,
+    /// Chunk content
+    pub content: String,
+    /// Chunk index in document
+    pub index: usize,
+    /// Character range in original document
+    pub range: (usize, usize),
+    /// Chunk type
+    pub chunk_type: String,
+    /// Parent chunk ID (for hierarchical chunks)
+    pub parent_id: Option<Uuid>,
+    /// Child chunk IDs
+    pub child_ids: Vec<Uuid>,
+}
+
+/// Document ingestion request schema.
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct IngestDocumentRequest {
+    /// Document title
+    #[schema(example = "Introduction to Neural Networks")]
+    pub title: Option<String>,
+    /// Document content
+    #[schema(example = "Neural networks are computing systems...")]
+    pub content: String,
+    /// Chunking strategy
+    pub chunking: Option<ChunkingStrategy>,
+    /// Whether to generate embeddings for chunks
+    #[schema(default = true)]
+    pub embed: bool,
+    /// Optional metadata to attach to all chunks
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Document ingestion response schema.
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct IngestDocumentResponse {
+    /// Document ID (root node)
+    pub document_id: Uuid,
+    /// Number of chunks created
+    pub chunk_count: usize,
+    /// Chunk information
+    pub chunks: Vec<ChunkInfo>,
+    /// Whether embeddings were generated
+    pub embedded: bool,
+    /// Processing time in milliseconds
+    pub processing_time_ms: u64,
 }
 

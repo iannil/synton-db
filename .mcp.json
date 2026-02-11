@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "synton-db": {
+      "command": "/Users/iannil/Code/synton-db/target/release/synton-mcp-server",
+      "args": [
+        "--endpoint",
+        "http://localhost:5570"
+      ],
+      "env": {
+        "VERBOSE": "true"
+      }
+    }
+  }
+}

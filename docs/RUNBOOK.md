@@ -587,3 +587,106 @@ watch -n 5 'curl -s http://localhost:8080/stats'
 
 - GitHub Issues: [https://github.com/synton-db/synton-db/issues](https://github.com/synton-db/synton-db/issues)
 - 文档: [docs/](./docs/)
+
+---
+
+## MCP 服务器配置（2026-02-09 更新）
+
+SYNTON-DB 现在支持 MCP (Model Context Protocol)，可作为 AI 编程助手的外挂记忆库。
+
+### 启动 MCP 服务器
+
+```bash
+# 构建二进制
+cargo build --release -p synton-mcp-server
+
+# 启动服务器
+./target/release/synton-mcp-server --endpoint http://localhost:8080
+```
+
+### Docker 部署
+
+```bash
+cd release/mcp-server
+docker-compose up -d
+```
+
+### Claude Code 配置
+
+在 `~/.config/claude-code/mcp_servers.json` 添加：
+
+```json
+{
+  "mcpServers": {
+    "synton-db": {
+      "command": "/usr/local/bin/synton-mcp-server",
+      "args": ["--endpoint", "http://localhost:8080"]
+    }
+  }
+}
+```
+
+### 可用工具
+
+| 工具 | 描述 |
+|------|------|
+| `synton_absorb` | 存储知识到数据库 |
+| `synton_query` | 自然语言查询 |
+| `synton_hybrid_search` | Graph-RAG 混合检索 |
+| `synton_get_node` | 按 UUID 获取节点 |
+| `synton_traverse` | 图遍历 |
+| `synton_add_edge` | 创建节点关系 |
+| `synton_stats` | 获取数据库统计 |
+| `synton_list_nodes` | 列出所有节点 |
+
+详细文档：[MCP Integration Report](./reports/completed/mcp-integration.md)
+
+---
+
+## Web UI 管理界面（2025-02-09 更新）
+
+SYNTON-DB 现在提供完整的 Web 管理界面，支持节点/边管理、图可视化、查询和遍历功能。
+
+### 访问地址
+
+- 开发环境：http://localhost:5173
+- 生产环境：http://localhost:8080/ (通过 Rust API 服务器提供)
+
+### 主要功能
+
+| 页面 | 路径 | 功能 |
+|------|------|------|
+| Dashboard | `/` | 统计概览、快捷操作、最近节点 |
+| Nodes | `/nodes` | 节点列表、创建、删除、详情 |
+| Edges | `/edges` | 边列表、创建关系 |
+| Graph | `/graph` | 图可视化（Cytoscape.js） |
+| Query | `/query` | 自然语言查询、GraphRAG 搜索 |
+| Traverse | `/traverse` | 图遍历可视化 |
+
+### 开发环境启动
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+### 生产构建
+
+```bash
+cd web
+npm run build
+```
+
+构建文件输出到 `web/dist/`，Rust API 服务器会自动提供这些静态文件。
+
+### 验收状态
+
+- [x] 节点管理功能完整
+- [x] 边管理功能完整
+- [x] 图可视化正常显示
+- [x] 查询和遍历功能正常
+- [x] 深色主题 UI
+- [x] 响应式设计
+
+详细文档：[Web UI Implementation Report](./reports/completed/2025-02-09-web-ui-implementation.md)

@@ -300,6 +300,11 @@ impl ContextSource {
     }
 }
 
+/// Helper function to create a test node.
+pub fn test_node(content: &str) -> Node {
+    Node::new(content.to_string(), NodeType::Concept)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

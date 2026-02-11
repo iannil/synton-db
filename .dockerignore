@@ -5,7 +5,6 @@
 # Build artifacts
 target/
 debug/
-release/
 
 # Documentation
 docs/

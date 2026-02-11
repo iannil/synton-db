@@ -10,6 +10,11 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+use crate::error::{MlError, Result};
+
+#[cfg(feature = "candle")]
+use candle::{Device as CandleDevice, DType as CandleDType};
+
 
 /// Configuration for model loading.
 #[derive(Debug, Clone)]
@@ -55,7 +60,7 @@ pub struct LoadedModel {
     pub tokenizer: tokenizers::Tokenizer,
 
     /// The device for computation.
-    pub device: candle_core::Device,
+    pub device: CandleDevice,
 
     /// Model name for reference.
     pub model_name: String,
@@ -112,20 +117,20 @@ impl ModelLoader {
     ///
     /// This will load from local cache if available, or download from Hugging Face.
     pub async fn load_embedding_model(&self, model_name: &str) -> Result<LoadedModel> {
-        use hf_hub::{api::sync::ApiBuilder, Cache, Repo};
+        use hf_hub::{api::sync::ApiBuilder, Repo};
 
         let cache_path = self.model_cache_path(model_name);
 
         // Set up the device
         let device = match self.config.device {
-            DeviceType::Cpu => candle_core::Device::Cpu,
-            DeviceType::Cuda(idx) => candle_core::Device::new_cuda(idx).unwrap_or(candle_core::Device::Cpu),
-            DeviceType::Metal => candle_core::Device::new_metal(0).unwrap_or(candle_core::Device::Cpu),
+            DeviceType::Cpu => CandleDevice::Cpu,
+            DeviceType::Cuda(idx) => CandleDevice::new_cuda(idx).unwrap_or(CandleDevice::Cpu),
+            DeviceType::Metal => CandleDevice::new_metal(0).unwrap_or(CandleDevice::Cpu),
         };
 
         // Build the API for Hugging Face
         let api = ApiBuilder::new()
-            .with_cache(Cache::new(cache_path.clone()))
+            .with_cache_dir(cache_path.clone())
             .build()
             .map_err(|e| MlError::ModelLoadFailed(format!("Failed to create HF API: {}", e)))?;
 
@@ -142,7 +147,7 @@ impl ModelLoader {
 
         // Load model weights
         let model_file = api
-            .repo(repo)
+            .repo(repo.clone())
             .get("model.safetensors")
             .or_else(|_| api.repo(repo.clone()).get("pytorch_model.bin"))
             .map_err(|e| MlError::ModelLoadFailed(format!("Failed to get model weights: {}", e)))?;
@@ -162,9 +167,9 @@ impl ModelLoader {
     async fn load_bert_model(
         &self,
         weights_path: &std::path::Path,
-        device: &candle_core::Device,
+        device: &CandleDevice,
     ) -> Result<candle_transformers::models::bert::BertModel> {
-        use candle_transformers::models::bert::{BertConfig, Config as TransformerConfig};
+        use candle_transformers::models::bert::Config;
 
         // Load configuration
         let config_file = weights_path
@@ -175,28 +180,48 @@ impl ModelLoader {
         let config_content = std::fs::read_to_string(&config_file)
             .map_err(|e| MlError::ModelLoadFailed(format!("Failed to read config: {}", e)))?;
 
-        let config: BertConfig = serde_json::from_str(&config_content)
+        let config: Config = serde_json::from_str(&config_content)
             .map_err(|e| MlError::ModelLoadFailed(format!("Failed to parse config: {}", e)))?;
 
-        // Load weights
+        // Load weights - Candle 0.9.2 API
+        // Use safetensors crate directly to load weights
         let vb = if weights_path.ends_with(".safetensors") {
-            candle_nn::VarBuilder::from_safetensors(
-                vec![weights_path],
-                candle_core::DType::F32,
-                device,
-            )
-            .map_err(|e| MlError::ModelLoadFailed(format!("Failed to load safetensors: {}", e)))?
+            // Load safetensors file
+            let safetensor_content = std::fs::read(weights_path)
+                .map_err(|e| MlError::ModelLoadFailed(format!("Failed to read safetensors file: {}", e)))?;
+
+            // Parse and load tensors using safetensors crate
+            let tensors = safetensors::SafeTensors::deserialize(&safetensor_content)
+                .map_err(|e| MlError::ModelLoadFailed(format!("Failed to deserialize safetensors: {}", e)))?;
+
+            // Convert to HashMap of tensors
+            let mut tensor_map = std::collections::HashMap::new();
+            for (name, info) in tensors.tensors() {
+                let tensor_view = tensors.tensor(&name)
+                    .map_err(|e| MlError::ModelLoadFailed(format!("Failed to get tensor: {}", e)))?;
+                let data = tensor_view.data();
+
+                // Create tensor from raw bytes
+                let shape: Vec<usize> = info.shape().iter().map(|&d| d as usize).collect();
+                let tensor = candle::Tensor::from_raw_buffer(
+                    data,
+                    candle::DType::F32,
+                    &shape,
+                    device,
+                ).map_err(|e| MlError::ModelLoadFailed(format!("Failed to create tensor: {}", e)))?;
+
+                tensor_map.insert(name.clone(), tensor);
+            }
+
+            candle_nn::VarBuilder::from_tensors(tensor_map, CandleDType::F32, device)
         } else {
-            candle_nn::VarBuilder::from_pth(
-                weights_path,
-                candle_core::DType::F32,
-                device,
-            )
-            .map_err(|e| MlError::ModelLoadFailed(format!("Failed to load pytorch weights: {}", e)))?
+            // Fallback to pytorch format
+            candle_nn::VarBuilder::from_pth(weights_path, CandleDType::F32, device)
+                .map_err(|e| MlError::ModelLoadFailed(format!("Failed to load pytorch weights: {}", e)))?
         };
 
-        // Create the model
-        let model = candle_transformers::models::bert::BertModel::new(vb, &config)
+        // Create the model - Candle 0.9.2 uses load() instead of new()
+        let model = candle_transformers::models::bert::BertModel::load(vb, &config)
             .map_err(|e| MlError::ModelLoadFailed(format!("Failed to create BERT model: {}", e)))?;
 
         Ok(model)

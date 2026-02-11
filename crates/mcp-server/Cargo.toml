@@ -1,0 +1,61 @@
+# Copyright 2025 SYNTON-DB Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+
+[package]
+name = "synton-mcp-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "MCP (Model Context Protocol) server for SYNTON-DB cognitive database"
+
+[dependencies]
+# Internal crates
+synton-core = { path = "../core" }
+
+# MCP protocol (using async trait for MCP implementation)
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["io-std", "rt-multi-thread", "macros"] }
+
+# HTTP client for REST API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# LRU cache
+lru = "0.12"
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[[bin]]
+name = "synton-mcp-server"
+path = "src/main.rs"

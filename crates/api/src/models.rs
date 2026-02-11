@@ -334,6 +334,108 @@ pub struct HybridSearchResponse {
     pub count: usize,
 }
 
+/// Chunking strategy for document ingestion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChunkingStrategy {
+    /// Fixed-size chunking by character count.
+    Fixed { chunk_size: usize, overlap: usize },
+
+    /// Semantic chunking based on sentence boundaries.
+    Semantic {
+        min_chunk_size: usize,
+        max_chunk_size: usize,
+        boundary_threshold: f32,
+    },
+
+    /// Hierarchical chunking with multiple levels.
+    Hierarchical {
+        include_sentences: bool,
+        include_paragraphs: bool,
+    },
+}
+
+impl Default for ChunkingStrategy {
+    fn default() -> Self {
+        Self::Semantic {
+            min_chunk_size: 100,
+            max_chunk_size: 500,
+            boundary_threshold: 0.5,
+        }
+    }
+}
+
+/// Document ingestion request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngestDocumentRequest {
+    /// Document title.
+    #[serde(default)]
+    pub title: Option<String>,
+
+    /// Document content.
+    pub content: String,
+
+    /// Chunking strategy.
+    #[serde(default)]
+    pub chunking: Option<ChunkingStrategy>,
+
+    /// Whether to generate embeddings for chunks.
+    #[serde(default = "default_embed")]
+    pub embed: bool,
+
+    /// Optional metadata to attach to all chunks.
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
+}
+
+fn default_embed() -> bool {
+    true
+}
+
+/// Information about a single chunk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkInfo {
+    /// Chunk ID.
+    pub id: Uuid,
+
+    /// Chunk content.
+    pub content: String,
+
+    /// Chunk index.
+    pub index: usize,
+
+    /// Character range in original document.
+    pub range: (usize, usize),
+
+    /// Chunk type.
+    pub chunk_type: String,
+
+    /// Parent chunk ID (for hierarchical chunks).
+    pub parent_id: Option<Uuid>,
+
+    /// Child chunk IDs.
+    pub child_ids: Vec<Uuid>,
+}
+
+/// Document ingestion response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngestDocumentResponse {
+    /// Document ID (root node).
+    pub document_id: Uuid,
+
+    /// Number of chunks created.
+    pub chunk_count: usize,
+
+    /// Chunk information.
+    pub chunks: Vec<ChunkInfo>,
+
+    /// Whether embeddings were generated.
+    pub embedded: bool,
+
+    /// Processing time in milliseconds.
+    pub processing_time_ms: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

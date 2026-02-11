@@ -9,13 +9,15 @@ use uuid::Uuid;
 
 use crate::{
     models::{
-        AddEdgeRequest, AddEdgeResponse, AddNodeRequest, AddNodeResponse, DatabaseStats,
-        DeleteNodeRequest, DeleteNodeResponse, GetNodeRequest, GetNodeResponse, HealthResponse,
-        MemoryStats, QueryRequest, QueryResponse, TraverseRequest, TraverseResponse,
+        AddEdgeRequest, AddEdgeResponse, AddNodeRequest, AddNodeResponse, ChunkInfo,
+        ChunkingStrategy as ApiChunkingStrategy, DatabaseStats, DeleteNodeRequest,
+        DeleteNodeResponse, GetNodeRequest, GetNodeResponse, HealthResponse,
+        IngestDocumentRequest, IngestDocumentResponse, MemoryStats, QueryRequest,
+        QueryResponse, TraverseRequest, TraverseResponse,
     },
     ApiError, ApiResult,
 };
-use synton_core::{Edge, Node};
+use synton_core::{Edge, Node, NodeType};
 use synton_graph::{Graph, MemoryGraph, TraverseDirection, TraversalConfig};
 use synton_memory::MemoryManager;
 
@@ -24,6 +26,11 @@ use synton_ml::EmbeddingService;
 
 use synton_storage::Store;
 use synton_vector::{VectorIndex, MemoryVectorIndex};
+use synton_chunking::{
+    ChunkMetadata, ChunkingStrategy as ChunkingStrategyTrait,
+    FixedChunker, FixedChunkConfig, HierarchicalChunker,
+    HierarchicalChunkConfig, SemanticChunker, SemanticChunkConfig,
+};
 
 /// Main SYNTON-DB service.
 ///
@@ -681,6 +688,143 @@ impl SyntonDbService {
                 average_score: memory_stats.average_score,
                 load_factor: memory_stats.load_factor,
             },
+        })
+    }
+
+    /// Ingest a document with automatic chunking.
+    pub async fn ingest_document(
+        &self,
+        request: IngestDocumentRequest,
+    ) -> ApiResult<IngestDocumentResponse> {
+        let start = std::time::Instant::now();
+
+        // Create document node
+        let title = request.title.as_deref().unwrap_or("Untitled Document");
+
+        let document_node = Node::new(
+            format!("{}: {}", title, request.content),
+            NodeType::Concept,
+        );
+
+        // Add document node
+        let mut nodes = self.nodes.write().await;
+        nodes.insert(document_node.id, document_node.clone());
+        drop(nodes);
+
+        // Chunk the document using the chunking crate
+        let chunks = match request.chunking.as_ref().unwrap_or(&ApiChunkingStrategy::default()) {
+            ApiChunkingStrategy::Fixed { chunk_size, overlap } => {
+                let metadata = ChunkMetadata {
+                    source: Some(title.to_string()),
+                    ..Default::default()
+                };
+                let config = FixedChunkConfig::new(*chunk_size, *overlap);
+                let chunker = FixedChunker::with_config(config)
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                chunker
+                    .chunk(&request.content, metadata)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?
+            }
+            ApiChunkingStrategy::Semantic {
+                min_chunk_size: _,
+                max_chunk_size,
+                boundary_threshold,
+            } => {
+                let metadata = ChunkMetadata {
+                    source: Some(title.to_string()),
+                    ..Default::default()
+                };
+
+                // For semantic chunking, use the built-in semantic chunker
+                let config = SemanticChunkConfig::new(*max_chunk_size, *boundary_threshold);
+                let chunker = SemanticChunker::with_config(config)
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                chunker
+                    .chunk(&request.content, metadata)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?
+            }
+            ApiChunkingStrategy::Hierarchical {
+                include_sentences: _,
+                include_paragraphs: _,
+            } => {
+                let metadata = ChunkMetadata {
+                    source: Some(title.to_string()),
+                    ..Default::default()
+                };
+                let config = HierarchicalChunkConfig::new();
+                let chunker = HierarchicalChunker::with_config(config)
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                chunker
+                    .chunk(&request.content, metadata)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?
+            }
+        };
+
+        // Process chunks and create nodes
+        let mut chunk_infos = Vec::new();
+        let mut nodes = self.nodes.write().await;
+        let mut graph = self.graph.write().await;
+
+        for chunk in chunks {
+            // Create node for chunk
+            let chunk_node = Node::new(chunk.content.clone(), NodeType::Concept);
+
+            // Link to document (chunk is part of document)
+            let _ = graph.add_edge(synton_core::Edge::new(
+                chunk_node.id,
+                document_node.id,
+                synton_core::Relation::IsPartOf,
+            ));
+
+            // Generate embeddings if requested
+            if request.embed {
+                #[cfg(feature = "ml")]
+                if let Some(embedding_service) = &self.embedding {
+                    if let Ok(embedding) = embedding_service
+                        .embed(&chunk.content)
+                        .await
+                    {
+                        let mut node_with_embedding = chunk_node.clone();
+                        node_with_embedding.embedding = Some(embedding);
+                        nodes.insert(chunk_node.id, node_with_embedding.clone());
+
+                        // Add to vector index
+                        if let Some(vector_index) = &self.vector_index {
+                            if let Some(emb) = &node_with_embedding.embedding {
+                                let _ = vector_index
+                                    .insert(chunk_node.id, emb.clone())
+                                    .await;
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            nodes.insert(chunk_node.id, chunk_node.clone());
+
+            chunk_infos.push(ChunkInfo {
+                id: chunk.id,
+                content: chunk.content,
+                index: chunk.index,
+                range: chunk.range,
+                chunk_type: format!("{:?}", chunk.chunk_type),
+                parent_id: chunk.parent_id,
+                child_ids: chunk.child_ids,
+            });
+        }
+
+        let processing_time_ms = start.elapsed().as_millis() as u64;
+
+        Ok(IngestDocumentResponse {
+            document_id: document_node.id,
+            chunk_count: chunk_infos.len(),
+            chunks: chunk_infos,
+            embedded: request.embed,
+            processing_time_ms,
         })
     }
 

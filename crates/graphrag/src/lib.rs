@@ -14,11 +14,34 @@ mod error;
 mod rag;
 mod retrieval;
 mod scorer;
+mod formatter;
+mod summary;
+mod expansion;
 
 pub use error::{GraphRagError, GraphRagResult};
 pub use rag::{GraphRag, GraphRagConfig};
 pub use retrieval::{RetrievalConfig, RetrievalMode, RetrievalResult, RetrievedContext};
 pub use scorer::{RelevanceScore, Scorer};
+
+// Formatter exports
+pub use formatter::{
+    ContextFormatter, FormatConfig, FormatStyle,
+    FlatFormatter, StructuredFormatter, MarkdownFormatter,
+    JsonFormatter, CompactFormatter, get_formatter,
+};
+
+// Summary exports
+pub use summary::{
+    SummaryLevel, SummaryConfig, HierarchicalSelector,
+    ContextCompressor, CompressionStrategy, HierarchicalNode,
+};
+
+// Expansion exports
+pub use expansion::{
+    ExpansionConfig, ExpansionStrategy, ExpansionResult,
+    ExpansionStats, NeighborExpander, RelationExpander,
+    ExpansionScorer,
+};
 
 /// Re-exports commonly used types
 pub mod prelude {

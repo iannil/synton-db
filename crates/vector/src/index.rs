@@ -58,7 +58,7 @@ pub trait VectorIndex: Send + Sync {
     async fn search_with_filter(
         &self,
         query: &[f32],
-        filter: Filter,
+        _filter: Filter,
         k: usize,
     ) -> VectorResult<Vec<SearchResult>> {
         // Default implementation: ignores filter
@@ -202,6 +202,13 @@ impl VectorIndex for MemoryVectorIndex {
     }
 }
 
+/// Helper function to dump all vectors from a memory index.
+/// Used for migration and testing.
+pub async fn memory_index_dump(index: &MemoryVectorIndex) -> VectorResult<Vec<(Uuid, Vec<f32>)>> {
+    let vectors = index.vectors.read().await;
+    Ok(vectors.iter().map(|(&id, vec)| (id, vec.clone())).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,5 +243,13 @@ mod tests {
         let query = vec![1.0, 0.0, 0.0];
         let results = index.search(&query, 5).await.unwrap();
         assert_eq!(results.len(), 0); // Empty index
+    }
+
+    /// Helper function to dump all vectors from a memory index.
+    /// Used for migration and testing.
+    #[cfg(any(test, feature = "lance"))]
+    pub async fn memory_index_dump(index: &MemoryVectorIndex) -> VectorResult<Vec<(Uuid, Vec<f32>)>> {
+        let vectors = index.vectors.read().await;
+        Ok(vectors.iter().map(|(&id, vec)| (id, vec.clone())).collect())
     }
 }

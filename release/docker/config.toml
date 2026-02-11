@@ -14,10 +14,10 @@
 host = "0.0.0.0"
 
 # gRPC server port
-grpc_port = 50051
+grpc_port = 5571
 
 # REST API server port
-rest_port = 8080
+rest_port = 5570
 
 # Enable/disable servers
 grpc_enabled = true

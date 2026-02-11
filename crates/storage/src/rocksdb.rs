@@ -370,6 +370,7 @@ impl Store for RocksdbStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use synton_core::{NodeType, Relation};
 
     #[tokio::test]
     async fn test_rocksdb_store_basic() {

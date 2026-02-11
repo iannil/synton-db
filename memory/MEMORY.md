@@ -16,19 +16,22 @@ SYNTON-DB 是一个认知数据库（Cognitive Database），也称为"神经符
 ### 项目阶段
 当前处于**生产就绪阶段 - 质量保障完成**。
 
-**已完成**:
+**已完成 (MVP0-MVP5)**:
 - MVP0: 存储基础 (RocksDB + Lance)
 - MVP1: 张量图 (Node + Edge + Graph traversal)
 - MVP2: Graph-RAG (混合检索)
 - MVP3: PaQL (查询解析器)
 - MVP4: 记忆机制 (遗忘曲线)
 - MVP5: API 服务 (REST + gRPC)
-- Phase 1: 单元测试覆盖 (188 测试)
-- Phase 2: Candle ML 实现 (代码完整)
-- Phase 3: API 文档 (OpenAPI 规范)
-- Phase 4: 集成测试 (19 测试)
 
-**测试状态**: 342 测试全部通过 ✅
+**已完成 (2026 Phase 0-4)**:
+- Phase 0: Candle 0.6.0 → 0.9.2 升级 ✅
+- Phase 1: 自适应分块实现 (19 tests passed) ✅
+- Phase 2: Lance 向量索引框架 (46 tests passed) ✅
+- Phase 3: 上下文合成优化 (30 tests passed) ✅
+- Phase 4: Candle Feature + Web UI 集成 ✅
+
+**测试状态**: 342+ 测试全部通过 ✅
 
 **后续优化** (P2):
 - 性能基准测试
@@ -181,6 +184,17 @@ SYNTON-DB 基于四大原则：
 ---
 
 ## 经验教训
+
+### 前端代码组织 (2026-02-11)
+- 前端代码统一在 `web/` 目录管理
+- 根目录不放置 `package.json` 等前端配置
+- Node modules 位置: `web/node_modules/`
+
+### 文档管理规范 (2026-02-11)
+- 已完成文档归档至 `docs/reports/completed/`
+- 历史文档归档至 `docs/archive/{YYYY}/`
+- 进行中文档存放在 `docs/progress/`
+- 创建 `docs/README.md` 作为文档导航入口
 
 ### 依赖管理经验 (2026-02-06)
 

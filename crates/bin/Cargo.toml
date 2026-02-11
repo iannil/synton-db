@@ -62,3 +62,4 @@ tonic = { workspace = true, features = ["transport", "server"] }
 [features]
 default = ["ml"]
 ml = ["dep:synton-ml", "synton-api/ml"]
+candle = ["ml", "synton-api/candle"]

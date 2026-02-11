@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "synton-db": {
+      "command": "/usr/local/bin/synton-mcp-server",
+      "args": [
+        "--endpoint",
+        "http://localhost:8080"
+      ],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}

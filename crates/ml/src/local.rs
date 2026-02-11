@@ -11,6 +11,9 @@ use crate::backend::EmbeddingBackend;
 use crate::config::LocalModelConfig;
 use crate::error::{MlError, Result};
 
+#[cfg(feature = "candle")]
+use candle::{Device as CandleDevice, DType as CandleDType, Tensor as CandleTensor};
+
 /// Local embedding backend using Candle.
 ///
 /// This backend requires the `candle` feature to be enabled.
@@ -33,7 +36,7 @@ struct LocalEmbeddingBackendInner {
 struct LoadedModel {
     model: candle_transformers::models::bert::BertModel,
     tokenizer: tokenizers::Tokenizer,
-    device: candle_core::Device,
+    device: CandleDevice,
 }
 
 impl LocalEmbeddingBackend {
@@ -126,8 +129,8 @@ impl EmbeddingBackend for LocalEmbeddingBackend {
         // Check cache
         {
             let cache = self.inner.cache.read().await;
-            let text_key = &text.to_string();
-            if let Some(cached) = cache.get(text_key) {
+            let text_key = text.to_string();
+            if let Some(cached) = cache.get(&text_key) {
                 return Ok(cached.clone());
             }
         }
@@ -171,7 +174,7 @@ impl EmbeddingBackend for LocalEmbeddingBackend {
                         return Err(MlError::EmptyInput);
                     }
 
-                    if let Some(cached) = cache.get(text) {
+                    if let Some(cached) = cache.get(&text.to_string()) {
                         results.push(Some(cached.clone()));
                     } else {
                         results.push(None);
@@ -243,21 +246,21 @@ impl LocalEmbeddingBackend {
         }
 
         // Create input tensor
-        let input_ids = candle_core::Tensor::from_vec(ids.to_vec(), (1, ids.len()), &model.device)
+        let input_ids = CandleTensor::from_vec(ids.to_vec(), (1, ids.len()), &model.device)
             .map_err(|e| MlError::EmbeddingFailed(format!("Failed to create input tensor: {}", e)))?;
 
         // Create attention mask
-        let attention_mask = candle_core::Tensor::ones(
+        let attention_mask = CandleTensor::ones(
             (1, ids.len()),
-            candle_core::DType::U8,
+            CandleDType::U8,
             &model.device,
         )
         .map_err(|e| MlError::EmbeddingFailed(format!("Failed to create attention mask: {}", e)))?;
 
-        // Run the model
+        // Run the model - Candle 0.9.2 forward takes optional token_type_ids as 3rd arg
         let embeddings = model
             .model
-            .forward(&input_ids, &attention_mask)
+            .forward(&input_ids, &attention_mask, None)
             .map_err(|e| MlError::EmbeddingFailed(format!("Model forward pass failed: {}", e)))?;
 
         // Mean pooling
@@ -284,24 +287,38 @@ impl LocalEmbeddingBackend {
     /// Mean pooling with attention mask.
     fn mean_pool(
         &self,
-        embeddings: &candle_core::Tensor,
-        attention_mask: &candle_core::Tensor,
-    ) -> Result<candle_core::Tensor> {
-        use candle_core::{DType, Device, Tensor};
+        embeddings: &CandleTensor,
+        attention_mask: &CandleTensor,
+    ) -> Result<CandleTensor> {
+        use candle::DType;
 
         // Expand attention mask to match embedding dimensions
         let mask = attention_mask
-            .to_dtype(DType::F32, embeddings.device())?
-            .unsqueeze(2)?;
+            .to_dtype(DType::F32)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to convert dtype: {}", e)))?
+            .unsqueeze(2)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to unsqueeze: {}", e)))?;
 
         // Multiply embeddings by mask and sum
-        let sum = (embeddings * mask)?.sum(1)?;
+        let product = (embeddings * &mask)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to multiply: {}", e)))?;
+        let sum = product
+            .sum(1)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to sum: {}", e)))?;
 
         // Count non-padding tokens
-        let count = mask.sum(1)?.clamp(1.0, f32::MAX)?;
+        let count = mask
+            .sum(1)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to sum mask: {}", e)))?
+            .clamp(1.0, f32::MAX)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to clamp: {}", e)))?;
 
         // Mean pooling
-        let pooled = (sum / count.unsqueeze(1)?)?;
+        let count_unsqueezed = count
+            .unsqueeze(1)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to unsqueeze count: {}", e)))?;
+        let pooled = (sum / count_unsqueezed)
+            .map_err(|e| MlError::EmbeddingFailed(format!("Failed to divide: {}", e)))?;
         Ok(pooled)
     }
 }

@@ -2,50 +2,37 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-use std::fmt;
-
 /// Vector index errors.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum VectorError {
     /// Index not found
+    #[error("Vector index '{0}' not found")]
     IndexNotFound(String),
 
     /// Invalid vector dimension
+    #[error("Invalid dimension: expected {expected}, found {found}")]
     InvalidDimension { expected: usize, found: usize },
 
     /// Invalid ID format
+    #[error("Invalid ID format: {0}")]
     InvalidId(String),
 
     /// Serialization error
+    #[error("Serialization error: {0}")]
     Serialization(String),
 
     /// Deserialization error
+    #[error("Deserialization error: {0}")]
     Deserialization(String),
 
     /// Backend error
+    #[error("Backend error: {0}")]
     Backend(String),
 
     /// Custom error
+    #[error("{0}")]
     Custom(String),
 }
-
-impl fmt::Display for VectorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IndexNotFound(name) => write!(f, "Vector index '{}' not found", name),
-            Self::InvalidDimension { expected, found } => {
-                write!(f, "Invalid dimension: expected {}, found {}", expected, found)
-            }
-            Self::InvalidId(id) => write!(f, "Invalid ID format: {}", id),
-            Self::Serialization(e) => write!(f, "Serialization error: {}", e),
-            Self::Deserialization(e) => write!(f, "Deserialization error: {}", e),
-            Self::Backend(e) => write!(f, "Backend error: {}", e),
-            Self::Custom(e) => write!(f, "{}", e),
-        }
-    }
-}
-
-impl std::error::Error for VectorError {}
 
 /// Result type for vector operations.
 pub type VectorResult<T> = Result<T, VectorError>;

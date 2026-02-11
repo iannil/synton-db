@@ -8,9 +8,10 @@ use uuid::Uuid;
 
 use crate::{
     models::{
-        AddEdgeRequest, AddEdgeResponse, AddNodeRequest, AddNodeResponse, DeleteNodeRequest,
-        DeleteNodeResponse, GetNodeRequest, GetNodeResponse, HealthResponse, HybridSearchRequest,
-        HybridSearchResponse, QueryRequest, QueryResponse, TraverseRequest, TraverseResponse,
+        AddEdgeRequest, AddEdgeResponse, AddNodeRequest, AddNodeResponse,
+        DeleteNodeRequest, DeleteNodeResponse, GetNodeRequest, GetNodeResponse, HealthResponse,
+        HybridSearchRequest, HybridSearchResponse, IngestDocumentRequest, IngestDocumentResponse,
+        QueryRequest, QueryResponse, TraverseRequest, TraverseResponse,
     },
     ApiResult, SyntonDbService,
 };
@@ -205,6 +206,26 @@ pub async fn hybrid_search(
     Ok(axum::Json(HybridSearchResponse { nodes, count }))
 }
 
+/// Ingest document handler.
+///
+/// Processes a document with automatic chunking and optional embedding generation.
+#[utoipa::path(
+    post,
+    path = "/documents",
+    request_body = IngestDocumentRequest,
+    responses(
+        (status = 200, description = "Document ingested successfully", body = IngestDocumentResponse)
+    ),
+    tag = "documents"
+)]
+pub async fn ingest_document(
+    State(state): State<AppState>,
+    axum::Json(request): axum::Json<IngestDocumentRequest>,
+) -> ApiResult<axum::Json<IngestDocumentResponse>> {
+    let response = state.service.ingest_document(request).await?;
+    Ok(axum::Json(response))
+}
+
 /// Traverse handler.
 ///
 /// Performs graph traversal (BFS) starting from a given node.
@@ -309,7 +330,8 @@ pub fn create_router() -> axum::Router {
     let service = Arc::new(SyntonDbService::new());
     let state = AppState::new(service);
 
-    axum::Router::new()
+    // API routes
+    let api_routes = axum::Router::new()
         .route("/health", axum::routing::get(health_check))
         .route("/stats", axum::routing::get(stats))
         .route("/nodes", axum::routing::post(add_node))
@@ -321,9 +343,19 @@ pub fn create_router() -> axum::Router {
         .route("/traverse", axum::routing::post(traverse))
         .route("/hybrid_search", axum::routing::post(hybrid_search))
         .route("/bulk", axum::routing::post(bulk_operation))
+        .route("/documents", axum::routing::post(ingest_document))
         // OpenAPI JSON endpoint
         .route("/api-docs/openapi.json", axum::routing::get(openapi_json))
-        .with_state(state)
+        .with_state(state);
+
+    // Serve static files from web/dist directory
+    let static_files = tower_http::services::ServeDir::new("web/dist")
+        .append_index_html_on_directories(true);
+
+    axum::Router::new()
+        .nest("/", api_routes)
+        .nest_service("/assets", static_files.clone())
+        .fallback_service(static_files)
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

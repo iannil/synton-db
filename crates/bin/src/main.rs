@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ensure_data_dirs(&config)?;
 
     // Start servers
-    let (server_handle, _shutdown_tx) = server::start_servers(&config)?;
+    let (server_handle, _shutdown_tx) = server::start_servers(&config).await?;
 
     info!("SYNTON-DB server started in {:.2}s", start_time.elapsed().as_secs_f64());
     info!("Press Ctrl+C to shut down");

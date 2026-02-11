@@ -1,1 +1,10 @@
 target/
+node_modules/
+logs/
+data/
+*.log
+.pids/
+.DS_Store
+*.pid
+*.tmp
+/tmp/
