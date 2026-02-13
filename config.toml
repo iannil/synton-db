@@ -90,9 +90,12 @@ device = "cpu"
 max_length = 512
 
 # API configuration (for openai/ollama backends)
-api_endpoint = "https://api.openai.com/v1"
-# api_key = "${OPENAI_API_KEY}"  # Set via environment variable
-api_model = "text-embedding-3-small"
+# For Zhipu AI (GLM): https://open.bigmodel.cn/api/paas/v4
+# For OpenAI: https://api.openai.com/v1
+# For DeepSeek: https://api.deepseek.com/v1
+api_endpoint = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "${ZHIPU_API_KEY}"  # Set via environment variable
+api_model = "embedding-2"
 timeout_secs = 30
 
 # Embedding cache
