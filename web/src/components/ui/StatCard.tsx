@@ -4,11 +4,12 @@
 
 import { Card } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import type { LucideIcon } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
   value: string | number;
-  icon: string;
+  icon: LucideIcon;
   trend?: {
     value: number;
     isPositive: boolean;
@@ -28,7 +29,7 @@ const colorStyles = {
 export function StatCard({
   title,
   value,
-  icon,
+  icon: Icon,
   trend,
   color = 'blue',
   onClick,
@@ -43,7 +44,9 @@ export function StatCard({
       onClick={onClick}
     >
       {/* Background decoration */}
-      <div className="absolute -right-4 -top-4 text-8xl opacity-10">{icon}</div>
+      <div className="absolute -right-4 -top-4 text-8xl opacity-10">
+        <Icon className="w-16 h-16" />
+      </div>
 
       {/* Content */}
       <div className="relative p-6">
@@ -54,7 +57,9 @@ export function StatCard({
             </p>
             <p className="mt-2 text-3xl font-bold text-white">{value}</p>
           </div>
-          <div className="text-3xl">{icon}</div>
+          <div className="rounded-full bg-white/5 p-2">
+            <Icon className="w-6 h-6 text-white" />
+          </div>
         </div>
 
         {trend && (
@@ -78,14 +83,14 @@ export function StatCard({
 
 interface QuickActionProps {
   label: string;
-  icon: string;
+  icon: LucideIcon;
   onClick: () => void;
   color?: 'blue' | 'purple' | 'green' | 'orange' | 'red';
 }
 
 export function QuickAction({
   label,
-  icon,
+  icon: Icon,
   onClick,
   color = 'blue',
 }: QuickActionProps): JSX.Element {
@@ -98,7 +103,9 @@ export function QuickAction({
         colorStyles[color]
       )}
     >
-      <span className="text-3xl">{icon}</span>
+      <div className="rounded-full bg-white/5 p-2">
+        <Icon className="w-6 h-6 text-white" />
+      </div>
       <span className="text-sm font-medium text-white">{label}</span>
     </button>
   );

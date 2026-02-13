@@ -51,19 +51,21 @@ export function Graph(): JSX.Element {
       try {
         setIsLoading(true);
         const nodesData = await api.getAllNodes();
-        setAllNodes(nodesData);
 
-        // Get edges by traversing from nodes
+        // Limit initial nodes to display count
+        const limitedNodes = nodesData.slice(0, MAX_NODES_TO_DISPLAY);
+        setAllNodes(limitedNodes);
+
+        // Get edges by traversing from the limited nodes only
         const edgesData: Edge[] = [];
-        const limitNodes = nodesData.slice(0, 50); // Limit to prevent too many requests
 
-        for (const node of limitNodes) {
+        for (const node of limitedNodes) {
           try {
             const traverseData = await api.traverse({
               start_id: node.id,
               max_depth: 1,
               max_nodes: 100,
-              direction: 'Forward',
+              direction: 'Both',
             });
             edgesData.push(...traverseData.edges);
           } catch {
@@ -71,7 +73,13 @@ export function Graph(): JSX.Element {
           }
         }
 
-        setAllEdges(edgesData);
+        // Filter edges to only include nodes we have
+        const nodeIdsSet = new Set(limitedNodes.map(n => n.id));
+        const validEdges = edgesData.filter(e =>
+          nodeIdsSet.has(e.source) && nodeIdsSet.has(e.target)
+        );
+        console.log('Loaded edges:', validEdges.length, 'from', edgesData.length, 'nodes:', limitedNodes.length);
+        setAllEdges(validEdges);
       } catch (err) {
         console.error('Failed to load graph data:', err);
       } finally {
@@ -104,10 +112,10 @@ export function Graph(): JSX.Element {
 
     setFilteredNodes(filtered);
 
-    // Get edges for filtered nodes
+    // Get edges for filtered nodes (show edges where at least one endpoint is in filtered nodes)
     const nodeIds = new Set(filtered.map((n) => n.id));
     const relatedEdges = allEdges.filter(
-      (e) => nodeIds.has(e.source) && nodeIds.has(e.target)
+      (e) => nodeIds.has(e.source) || nodeIds.has(e.target)
     );
     setFilteredEdges(relatedEdges);
   }, [allNodes, allEdges, typeFilter, searchQuery]);

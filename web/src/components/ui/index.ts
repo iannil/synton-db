@@ -56,5 +56,26 @@ export {
 export {
 } from '@/components/shadcn/ui/sheet';
 
+// New components
+export {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/shadcn/ui/tooltip';
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '@/components/shadcn/ui/tabs';
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@/components/shadcn/ui/popover';
+export { Toaster } from '@/components/shadcn/ui/toaster';
+export { toast } from '@/components/shadcn/ui/toast';
+
 // Custom components (preserved)
 export { StatCard, QuickAction } from './StatCard';

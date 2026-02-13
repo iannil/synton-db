@@ -5,10 +5,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
-import type { Node, HybridSearchResponse, QueryResponse } from '@/types/api';
+import type { Node } from '@/types/api';
 import { Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Alert, AlertDescription, Badge, Label } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Building, Lightbulb, CheckCircle, FileText } from 'lucide-react';
 
 const QUERY_HISTORY_KEY = 'syntondb_query_history';
 
@@ -17,18 +17,18 @@ const SEARCH_TYPES = [
   { value: 'text', label: 'Text Query' },
 ];
 
-const NODE_TYPE_ICONS: Record<string, string> = {
-  entity: '🏢',
-  concept: '💡',
-  fact: '✓',
-  raw_chunk: '📄',
+const NODE_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  entity: Building,
+  concept: Lightbulb,
+  fact: CheckCircle,
+  raw_chunk: FileText,
 };
 
 const NODE_TYPE_COLORS: Record<string, string> = {
   entity: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  concept: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  fact: 'bg-green-500/20 text-green-400 border-green-500/30',
-  raw_chunk: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  concept: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+  fact: 'bg-green-500/20 text-green-400 border border-green-500/30',
+  raw_chunk: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
 };
 
 export function Query(): JSX.Element {
@@ -222,43 +222,44 @@ export function Query(): JSX.Element {
 
       {results.length > 0 && (
         <div className="space-y-3">
-          {results.map((node) => (
-            <Card
-              key={node.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate(`/nodes/${node.id}`)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  <div className={cn(
-                    'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border',
-                    NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
-                  )}>
-                    <span className="text-2xl">
-                      {NODE_TYPE_ICONS[node.node_type] || '📄'}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {node.node_type}
-                      </Badge>
-                      <span className="text-xs text-gray-500">
-                        {(node.meta.confidence * 100).toFixed(0)}% confidence
-                      </span>
+          {results.map((node) => {
+            const NodeTypeIcon = NODE_TYPE_ICONS[node.node_type] || FileText;
+            return (
+              <Card
+                key={node.id}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate(`/nodes/${node.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <div className={cn(
+                      'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border',
+                      NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
+                    )}>
+                      <NodeTypeIcon className="w-6 h-6" />
                     </div>
-                    <p className="text-white line-clamp-2">{node.content}</p>
-                    {node.meta.access_score > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Access score: {node.meta.access_score.toFixed(2)}
-                      </p>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {node.node_type}
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {(node.meta.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                      </div>
+                      <p className="text-white line-clamp-2">{node.content}</p>
+                      {node.meta.access_score > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Access score: {node.meta.access_score.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-500 flex-shrink-0" />
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

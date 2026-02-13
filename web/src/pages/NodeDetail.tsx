@@ -20,13 +20,13 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, Building, Lightbulb, CheckCircle, FileText } from 'lucide-react';
 
-const NODE_TYPE_ICONS: Record<string, string> = {
-  entity: '🏢',
-  concept: '💡',
-  fact: '✓',
-  raw_chunk: '📄',
+const NODE_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  entity: Building,
+  concept: Lightbulb,
+  fact: CheckCircle,
+  raw_chunk: FileText,
 };
 
 const NODE_TYPE_COLORS: Record<string, string> = {
@@ -118,6 +118,8 @@ export function NodeDetail(): JSX.Element {
     );
   }
 
+  const NodeTypeIcon = NODE_TYPE_ICONS[node.node_type] || FileText;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -146,9 +148,7 @@ export function NodeDetail(): JSX.Element {
               'w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 border',
               NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
             )}>
-              <span className="text-3xl">
-                {NODE_TYPE_ICONS[node.node_type] || '📄'}
-              </span>
+              <NodeTypeIcon className="w-8 h-8" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2">

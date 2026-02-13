@@ -9,12 +9,31 @@ import type { DatabaseStats, HealthResponse, Node } from '@/types/api';
 import { StatCard, QuickAction } from '@/components/ui';
 import { Card, CardContent, Badge, Skeleton } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import {
+  Database,
+  GitBranch,
+  Brain,
+  CheckCircle2,
+  AlertTriangle,
+  Zap,
+  TrendingDown,
+  BarChart3,
+  HardDrive,
+  Plus,
+  Link as LinkIcon,
+  Search,
+  Network,
+  Building,
+  Lightbulb,
+  CheckCircle,
+  FileText,
+} from 'lucide-react';
 
-const NODE_TYPE_ICONS: Record<string, string> = {
-  entity: '🏢',
-  concept: '💡',
-  fact: '✓',
-  raw_chunk: '📄',
+const NODE_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  entity: Building,
+  concept: Lightbulb,
+  fact: CheckCircle,
+  raw_chunk: FileText,
 };
 
 const NODE_TYPE_COLORS: Record<string, string> = {
@@ -98,27 +117,27 @@ export function Dashboard(): JSX.Element {
         <StatCard
           title="Total Nodes"
           value={stats?.node_count ?? 0}
-          icon="🔷"
+          icon={Database}
           color="blue"
           onClick={() => navigate('/nodes')}
         />
         <StatCard
           title="Total Edges"
           value={stats?.edge_count ?? 0}
-          icon="🔗"
+          icon={GitBranch}
           color="purple"
           onClick={() => navigate('/edges')}
         />
         <StatCard
           title="Embedded Nodes"
           value={stats?.embedded_count ?? 0}
-          icon="🧠"
+          icon={Brain}
           color="green"
         />
         <StatCard
           title="System Status"
           value={health?.status === 'healthy' ? 'Healthy' : 'Warning'}
-          icon={health?.status === 'healthy' ? '✅' : '⚠️'}
+          icon={health?.status === 'healthy' ? CheckCircle2 : AlertTriangle}
           color={health?.status === 'healthy' ? 'green' : 'orange'}
         />
       </div>
@@ -129,25 +148,25 @@ export function Dashboard(): JSX.Element {
           <StatCard
             title="Active Nodes"
             value={stats.memory_stats.active_nodes}
-            icon="⚡"
+            icon={Zap}
             color="green"
           />
           <StatCard
             title="Decayed Nodes"
             value={stats.memory_stats.decayed_nodes}
-            icon="📉"
+            icon={TrendingDown}
             color="orange"
           />
           <StatCard
             title="Avg Access Score"
             value={stats.memory_stats.average_score.toFixed(2)}
-            icon="📊"
+            icon={BarChart3}
             color="blue"
           />
           <StatCard
             title="Memory Load"
             value={`${(stats.memory_stats.load_factor * 100).toFixed(1)}%`}
-            icon="💾"
+            icon={HardDrive}
             color="purple"
           />
         </div>
@@ -160,25 +179,25 @@ export function Dashboard(): JSX.Element {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <QuickAction
               label="Add Node"
-              icon="➕"
+              icon={Plus}
               color="blue"
               onClick={() => navigate('/nodes?action=create')}
             />
             <QuickAction
               label="Add Edge"
-              icon="🔗"
+              icon={LinkIcon}
               color="purple"
               onClick={() => navigate('/edges?action=create')}
             />
             <QuickAction
               label="Query"
-              icon="🔍"
+              icon={Search}
               color="green"
               onClick={() => navigate('/query')}
             />
             <QuickAction
               label="Graph View"
-              icon="🕸️"
+              icon={Network}
               color="orange"
               onClick={() => navigate('/graph')}
             />
@@ -203,31 +222,32 @@ export function Dashboard(): JSX.Element {
             <p className="text-gray-500 text-center py-8">No nodes yet. Create your first node!</p>
           ) : (
             <div className="space-y-3">
-              {recentNodes.map((node) => (
-                <div
-                  key={node.id}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/nodes/${node.id}`)}
-                >
-                  <div className={cn(
-                    'w-10 h-10 rounded-full flex items-center justify-center',
-                    NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
-                  )}>
-                    <span className="text-lg">
-                      {NODE_TYPE_ICONS[node.node_type] || '📄'}
-                    </span>
+              {recentNodes.map((node) => {
+                const NodeTypeIcon = NODE_TYPE_ICONS[node.node_type] || FileText;
+                return (
+                  <div
+                    key={node.id}
+                    className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/nodes/${node.id}`)}
+                  >
+                    <div className={cn(
+                      'w-10 h-10 rounded-full flex items-center justify-center',
+                      NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
+                    )}>
+                      <NodeTypeIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{node.content}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(node.meta.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {node.node_type}
+                    </Badge>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{node.content}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(node.meta.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {node.node_type}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

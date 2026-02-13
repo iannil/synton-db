@@ -16,6 +16,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Enable history API fallback for SPA routing
     proxy: {
       '/health': {
         target: 'http://localhost:5570',
@@ -50,6 +51,13 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  // Public base path when served from root
+  base: '/',
+  // Build optimizations
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
   },
   esbuild: {
     jsx: 'automatic',

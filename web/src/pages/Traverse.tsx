@@ -15,17 +15,16 @@ import {
   Button,
   Card,
   CardContent,
-  Input,
   Label,
   Slider,
   Alert,
   AlertDescription,
-  Skeleton,
   Badge,
   Progress,
 } from '@/components/ui';
 import { GraphViewer } from '@/components/graph/GraphViewer';
 import { cn } from '@/lib/utils';
+import { Building, Lightbulb, CheckCircle, FileText } from 'lucide-react';
 
 const DIRECTIONS = [
   { value: 'Forward', label: 'Forward (outgoing)' },
@@ -33,11 +32,11 @@ const DIRECTIONS = [
   { value: 'Both', label: 'Both directions' },
 ];
 
-const NODE_TYPE_ICONS: Record<string, string> = {
-  entity: '🏢',
-  concept: '💡',
-  fact: '✓',
-  raw_chunk: '📄',
+const NODE_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  entity: Building,
+  concept: Lightbulb,
+  fact: CheckCircle,
+  raw_chunk: FileText,
 };
 
 const NODE_TYPE_COLORS: Record<string, string> = {
@@ -124,12 +123,6 @@ export function Traverse(): JSX.Element {
     }
   };
 
-  const getNodeLabel = (nodeId: string): string => {
-    const node = nodes.find((n) => n.id === nodeId);
-    if (!node) return nodeId;
-    return node.content.length > 30 ? node.content.slice(0, 30) + '...' : node.content;
-  };
-
   const startNode = nodes.find((n) => n.id === startNodeId);
 
   return (
@@ -152,18 +145,18 @@ export function Traverse(): JSX.Element {
               {isLoadingNodes ? (
                 <p className="text-gray-500 text-sm">Loading nodes...</p>
               ) : (
-                <select
-                  id="start-node"
-                  value={startNodeId}
-                  onChange={(e) => setStartNodeId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {nodes.map((node) => (
-                    <option key={node.id} value={node.id}>
-                      [{node.node_type}] {node.content.slice(0, 40)}
-                    </option>
-                  ))}
-                </select>
+                <Select value={startNodeId} onValueChange={setStartNodeId}>
+                  <SelectTrigger id="start-node">
+                    <SelectValue placeholder="Select a node" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nodes.map((node) => (
+                      <SelectItem key={node.id} value={node.id}>
+                        [{node.node_type}] {node.content.slice(0, 40)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
 
@@ -307,9 +300,10 @@ export function Traverse(): JSX.Element {
                       'w-10 h-10 rounded-full flex items-center justify-center',
                       NODE_TYPE_COLORS[startNode.node_type] || NODE_TYPE_COLORS.raw_chunk
                     )}>
-                      <span className="text-xl">
-                        {NODE_TYPE_ICONS[startNode.node_type] || '📄'}
-                      </span>
+                      {(() => {
+                        const NodeTypeIcon = NODE_TYPE_ICONS[startNode.node_type] || FileText;
+                        return <NodeTypeIcon className="w-5 h-5 text-white" />;
+                      })()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white line-clamp-2">{startNode.content}</p>
@@ -332,26 +326,30 @@ export function Traverse(): JSX.Element {
                   Discovered Nodes ({traversedNodes.length})
                 </h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {traversedNodes.map((node) => (
-                    <div
-                      key={node.id}
-                      className="flex items-center gap-2 p-2 rounded bg-muted/50 hover:bg-muted/80 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/nodes/${node.id}`)}
-                    >
-                      <span className={cn(
-                        'w-2 h-2 rounded-full',
-                        NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
-                      )} />
-                      <span className="text-xs text-white truncate flex-1">
-                        {node.content.slice(0, 30)}{node.content.length > 30 ? '...' : ''}
-                      </span>
-                      {node.id === startNodeId && (
-                        <Badge variant="default" className="text-[10px] h-5">
-                          Start
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
+                  {traversedNodes.map((node) => {
+                    const NodeTypeIcon = NODE_TYPE_ICONS[node.node_type] || FileText;
+                    return (
+                      <div
+                        key={node.id}
+                        className="flex items-center gap-2 p-2 rounded bg-muted/50 hover:bg-muted/80 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/nodes/${node.id}`)}
+                      >
+                        <div className={cn(
+                          'w-2 h-2 rounded-full',
+                          NODE_TYPE_COLORS[node.node_type] || NODE_TYPE_COLORS.raw_chunk
+                        )} />
+                        <NodeTypeIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <span className="text-xs text-white truncate flex-1">
+                          {node.content.slice(0, 30)}{node.content.length > 30 ? '...' : ''}
+                        </span>
+                        {node.id === startNodeId && (
+                          <Badge variant="default" className="text-[10px] h-5">
+                            Start
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

@@ -1,14 +1,13 @@
 /**
- * Graph visualization component using Cytoscape.js.
+ * Graph visualization component using AntV G6.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import cytoscape, { Core, ElementDefinition } from 'cytoscape';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { Graph } from '@antv/g6';
 import type { Node, Edge, NodeType } from '@/types/api';
-
-// Register the layout extension
-import coseBilkent from 'cytoscape-cose-bilkent';
-cytoscape.use(coseBilkent);
+import { Button } from '@/components/ui';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui';
+import { Plus, Minus, Maximize2 } from 'lucide-react';
 
 interface GraphViewerProps {
   nodes: Node[];
@@ -40,174 +39,191 @@ export function GraphViewer({
   height = '600px',
 }: GraphViewerProps): JSX.Element | null {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cyRef = useRef<Core | null>(null);
+  const graphRef = useRef<Graph | null>(null);
+  const previousSelectedNodeIdRef = useRef<string | undefined>();
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [graphInitialized, setGraphInitialized] = useState(false);
 
-  // Initialize Cytoscape
+  // Keep onNodeClick ref up to date
+  const onNodeClickRef = useRef(onNodeClick);
   useEffect(() => {
-    if (!containerRef.current) return;
+    onNodeClickRef.current = onNodeClick;
+  }, [onNodeClick]);
 
-    const cy = cytoscape({
-      container: containerRef.current,
-      elements: [],
-      style: [
-        {
-          selector: 'node',
-          style: {
-            'background-color': 'data(color)',
-            'label': 'data(label)',
-            'text-valign': 'center',
-            'text-halign': 'center',
-            'width': '40px',
-            'height': '40px',
-            'font-size': '10px',
-            'color': '#fff',
-            'text-outline-color': '#000',
-            'text-outline-width': '2px',
-            'border-width': 2,
-            'border-color': '#fff',
-          },
-        },
-        {
-          selector: 'node:selected',
-          style: {
-            'border-width': 4,
-            'border-color': '#e94560',
-          },
-        },
-        {
-          selector: 'edge',
-          style: {
-            'width': 'data(width)',
-            'line-color': '#666',
-            'target-arrow-color': '#666',
-            'target-arrow-shape': 'triangle',
-            'curve-style': 'bezier',
-            'arrow-scale': 0.8,
-          },
-        },
-        {
-          selector: 'edge:selected',
-          style: {
-            'line-color': '#e94560',
-            'target-arrow-color': '#e94560',
-          },
-        },
-      ],
-      layout: {
-        name: 'cose-bilkent',
-        animate: true,
-        animationDuration: 500,
-        fit: true,
-        padding: 50,
-        nodeRepulsion: 4500,
-        idealEdgeLength: 50,
-        edgeElasticity: 0.45,
-        nestingFactor: 0.1,
+  // Check if we have data ready to display
+  const hasData = nodes.length > 0 && edges.length > 0;
+
+  // Transform data for G6 (memoized to prevent infinite loops)
+  const graphData = useMemo(() => ({
+    nodes: nodes.map((node) => ({
+      id: node.id,
+      data: {
+        label: NODE_TYPE_LABELS[node.node_type],
+        color: NODE_TYPE_COLORS[node.node_type],
+        nodeData: node,
       },
-      minZoom: 0.1,
-      maxZoom: 3,
+    })),
+    edges: edges.map((edge, index) => ({
+      id: `${edge.source}-${edge.target}-${index}`,
+      source: edge.source,
+      target: edge.target,
+      data: {
+        weight: Math.max(1, edge.weight * 5),
+        edgeData: edge,
+      },
+    })),
+  }), [nodes, edges]);
+
+  // Initialize G6 graph (only once when container is ready)
+  useEffect(() => {
+    if (!containerRef.current || graphInitialized) return;
+
+    console.log('Initializing G6 graph container');
+
+    const graph = new Graph({
+      container: containerRef.current,
+      autoFit: 'view',
+      autoResize: true,
+      padding: 50,
+      node: {
+        style: {
+          size: 40,
+          fill: (datum) => datum.data?.color || '#3498db',
+          stroke: '#fff',
+          lineWidth: 2,
+        },
+      },
+      edge: {
+        style: {
+          stroke: '#666',
+          lineWidth: 2,
+          endArrow: true,
+          arrowSize: 8,
+        },
+      },
+      layout: {
+        type: 'force',
+        preventOverlap: true,
+        nodeStrength: -300,
+        edgeStrength: 0.1,
+        linkDistance: 100,
+      },
+      behaviors: [
+        'zoom-canvas',
+        'drag-canvas',
+        'drag-element',
+      ],
     });
 
-    cyRef.current = cy;
+    graphRef.current = graph;
+    setGraphInitialized(true);
 
-    // Event handlers
-    cy.on('tap', 'node', (evt) => {
-      const node = evt.target;
-      const nodeId = node.id();
-      const clickedNode = nodes.find((n) => n.id === nodeId);
-      if (clickedNode && onNodeClick) {
-        onNodeClick(clickedNode);
+    // Handle node click
+    graph.on('node:click', (event) => {
+      const nodeId = event.itemId;
+      const nodeData = graph.getNodeData(nodeId);
+      if (nodeData?.data?.nodeData && onNodeClickRef.current) {
+        onNodeClickRef.current(nodeData.data.nodeData as Node);
       }
     });
 
-    cy.on('zoom', () => {
-      setZoom(cy.zoom());
-      setPan({ x: cy.pan().x, y: cy.pan().y });
-    });
-
-    cy.on('pan', () => {
-      setPan({ x: cy.pan().x, y: cy.pan().y });
+    // Handle zoom changes
+    graph.on('viewport-change', () => {
+      const currentZoom = graph.getZoom();
+      setZoom(currentZoom);
     });
 
     return () => {
-      cy.destroy();
+      graph.destroy();
+      setGraphInitialized(false);
     };
-  }, []);
+  }, [graphInitialized]);
 
-  // Update graph data
+  // Update graph data when data changes
   useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
+    const graph = graphRef.current;
+    if (!graph || !hasData) return;
 
-    const elements: ElementDefinition[] = [
-      ...nodes.map((node) => ({
-        data: {
-          id: node.id,
-          label: NODE_TYPE_LABELS[node.node_type],
-          color: NODE_TYPE_COLORS[node.node_type],
-          nodeData: node,
-        },
-      })),
-      ...edges.map((edge, index) => ({
-        data: {
-          id: `${edge.source}-${edge.target}-${index}`,
-          source: edge.source,
-          target: edge.target,
-          width: Math.max(1, edge.weight * 5),
-          edgeData: edge,
-        },
-      })),
-    ];
+    console.log('Rendering graph data:', { nodes: graphData.nodes.length, edges: graphData.edges.length });
+    graph.setData(graphData);
+    graph.render();
 
-    cy.json({ elements });
-    cy.layout({
-      name: 'cose-bilkent',
-      animate: true,
-      animationDuration: 500,
-      fit: true,
-      padding: 50,
-    }).run();
-  }, [nodes, edges]);
+    // Log container dimensions after render
+    setTimeout(() => {
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        console.log('Container dimensions:', { width: rect.width, height: rect.height });
+      }
+    }, 100);
+  }, [graphData, hasData]);
 
   // Handle selection
   useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
+    const graph = graphRef.current;
+    if (!graph) return;
 
-    cy.elements().unselect();
+    // Clear previous selection
+    const previousId = previousSelectedNodeIdRef.current;
+    if (previousId) {
+      graph.setItemState(previousId, 'selected', false);
+    }
+
     if (selectedNodeId) {
-      const node = cy.getElementById(selectedNodeId);
-      if (node.length > 0) {
-        node.select();
-        cy.animate({
-          center: { eles: node },
-          zoom: 1.5,
-        }, {
-          duration: 300
-        });
-      }
+      graph.setItemState(selectedNodeId, 'selected', true);
+      // Focus on the selected node
+      graph.focusItem(selectedNodeId, true, {
+        duration: 300,
+        easing: 'ease-cubic-in-out',
+      });
+      previousSelectedNodeIdRef.current = selectedNodeId;
+    } else {
+      previousSelectedNodeIdRef.current = undefined;
     }
   }, [selectedNodeId]);
 
-  const handleFit = () => {
-    cyRef.current?.fit(undefined, 50);
-  };
+  const handleFit = useCallback(() => {
+    const graph = graphRef.current;
+    if (graph) {
+      graph.fitCenter();
+    }
+  }, []);
 
-  const handleZoomIn = () => {
-    cyRef.current?.zoom({
-      level: (cyRef.current.zoom() || 1) * 1.2,
-      renderedPosition: { x: containerRef.current?.offsetWidth || 0, y: containerRef.current?.offsetHeight || 0 }
-    });
-  };
+  const handleZoomIn = useCallback(() => {
+    const graph = graphRef.current;
+    if (graph) {
+      const newZoom = (graph.getZoom() || 1) * 1.2;
+      graph.zoomTo(newZoom);
+    }
+  }, []);
 
-  const handleZoomOut = () => {
-    cyRef.current?.zoom({
-      level: (cyRef.current.zoom() || 1) * 0.8,
-      renderedPosition: { x: containerRef.current?.offsetWidth || 0, y: containerRef.current?.offsetHeight || 0 }
-    });
-  };
+  const handleZoomOut = useCallback(() => {
+    const graph = graphRef.current;
+    if (graph) {
+      const newZoom = (graph.getZoom() || 1) * 0.8;
+      graph.zoomTo(newZoom);
+    }
+  }, []);
+
+  // Show loading state while waiting for data
+  if (!hasData) {
+    return (
+      <div className="card p-0 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#0f3460]">
+          <div className="flex items-center gap-4 text-sm text-gray-400">
+            <span>Nodes: {nodes.length}</span>
+            <span>Edges: {edges.length}</span>
+          </div>
+        </div>
+        <div
+          className="bg-[#1a1a2e] flex items-center justify-center"
+          style={{ height }}
+        >
+          <p className="text-gray-400">Loading graph data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -219,40 +235,66 @@ export function GraphViewer({
           <span>Zoom: {(zoom * 100).toFixed(0)}%</span>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleZoomIn}
-            className="p-1.5 rounded hover:bg-white/10 text-white"
-            title="Zoom In"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-1.5 rounded hover:bg-white/10 text-white"
-            title="Zoom Out"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-            </svg>
-          </button>
-          <button
-            onClick={handleFit}
-            className="p-1.5 rounded hover:bg-white/10 text-white"
-            title="Fit to Screen"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleZoomIn}
+                  className="h-8 w-8 text-white hover:bg-white/10"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Zoom In</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleZoomOut}
+                  className="h-8 w-8 text-white hover:bg-white/10"
+                >
+                  <Minus className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Zoom Out</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleFit}
+                  className="h-8 w-8 text-white hover:bg-white/10"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Fit to Screen</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
       {/* Graph Container */}
       <div
         ref={containerRef}
-        style={{ height }}
+        style={{ height, minHeight: '400px' }}
         className="bg-[#1a1a2e]"
       />
 
