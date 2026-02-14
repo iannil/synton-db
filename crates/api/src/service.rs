@@ -32,6 +32,8 @@ use synton_chunking::{
     HierarchicalChunkConfig, SemanticChunker, SemanticChunkConfig,
 };
 
+use synton_instrument::TraceCollector;
+
 /// Main SYNTON-DB service.
 ///
 /// Combines all database components into a unified service.
@@ -57,6 +59,9 @@ pub struct SyntonDbService {
 
     /// Whether persistence is enabled.
     persistence_enabled: bool,
+
+    /// Instrumentation collector.
+    pub collector: &'static TraceCollector,
 }
 
 impl SyntonDbService {
@@ -75,6 +80,7 @@ impl SyntonDbService {
             persistence_enabled: false,
             #[cfg(feature = "ml")]
             embedding: None,
+            collector: TraceCollector::global(),
         }
     }
 
@@ -93,6 +99,7 @@ impl SyntonDbService {
             persistence_enabled: true,
             #[cfg(feature = "ml")]
             embedding: None,
+            collector: TraceCollector::global(),
         }
     }
 
@@ -114,6 +121,7 @@ impl SyntonDbService {
             vector_index,
             persistence_enabled: false,
             embedding: Some(embedding),
+            collector: TraceCollector::global(),
         }
     }
 
@@ -135,6 +143,7 @@ impl SyntonDbService {
             vector_index,
             persistence_enabled: true,
             embedding: Some(embedding),
+            collector: TraceCollector::global(),
         }
     }
 

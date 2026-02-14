@@ -10,6 +10,12 @@ pub enum ApiError {
     /// Node not found.
     NodeNotFound(uuid::Uuid),
 
+    /// Invalid trace ID.
+    InvalidTraceId(String),
+
+    /// Trace not found.
+    TraceNotFound(String),
+
     /// Invalid request.
     InvalidRequest(String),
 
@@ -35,6 +41,8 @@ impl fmt::Display for ApiError {
             Self::Storage(msg) => write!(f, "Storage error: {}", msg),
             Self::Serialization(msg) => write!(f, "Serialization error: {}", msg),
             Self::NotImplemented(msg) => write!(f, "Not implemented: {}", msg),
+            Self::InvalidTraceId(id) => write!(f, "Invalid trace ID: {}", id),
+            Self::TraceNotFound(id) => write!(f, "Trace not found: {}", id),
         }
     }
 }
@@ -89,6 +97,8 @@ impl axum::response::IntoResponse for ApiError {
             ApiError::Storage(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             ApiError::Serialization(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             ApiError::NotImplemented(_) => (axum::http::StatusCode::NOT_IMPLEMENTED, self.to_string()),
+            ApiError::InvalidTraceId(_) => (axum::http::StatusCode::BAD_REQUEST, self.to_string()),
+            ApiError::TraceNotFound(_) => (axum::http::StatusCode::NOT_FOUND, self.to_string()),
         };
 
         let body = axum::Json(serde_json::json!({

@@ -1,0 +1,44 @@
+[package]
+name = "synton-collector"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Persistent trace data collector for SYNTON-DB instrumentation"
+
+[lib]
+name = "synton_collector"
+path = "src/lib.rs"
+
+[dependencies]
+# Workspace dependencies
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Storage
+rocksdb = { workspace = true }
+
+# Local dependencies
+synton-instrument = { path = "../instrument" }
+
+# Async
+tokio = { workspace = true }
+
+# Additional dependencies
+parking_lot = "0.12"
+once_cell = "1.19"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3.10"

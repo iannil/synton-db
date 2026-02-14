@@ -101,3 +101,30 @@ timeout_secs = 30
 # Embedding cache
 cache_enabled = true
 cache_size = 10000
+
+[instrument]
+# Enable instrumentation
+enabled = true
+
+# Sampling rate (0.0 to 1.0)
+sample_rate = 1.0
+
+# Maximum number of spans to keep in memory
+max_spans_in_memory = 10000
+
+# Enable persistence
+persistence_enabled = true
+
+# Storage path for traces
+trace_path = "./data/traces"
+
+# Format: json, protobuf
+format = "json"
+
+# Export configuration
+[instrument.export]
+# Export endpoint (e.g., OpenTelemetry Collector)
+endpoint = "http://localhost:4317"
+
+# Export format: otlp, json
+format = "otlp"

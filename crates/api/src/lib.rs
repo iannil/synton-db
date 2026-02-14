@@ -1,7 +1,7 @@
 // Copyright 2025 SYNTON-DB Team
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-
+//
 //! API service layer for SYNTON-DB.
 //!
 //! Provides gRPC and REST endpoints for database operations.
@@ -9,13 +9,17 @@
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 
-mod error;
+pub mod error;
 mod grpc;
+mod instrument;
 mod models;
+
 /// OpenAPI documentation.
 pub mod openapi;
+
 /// REST API handlers and router.
 pub mod rest;
+
 mod service;
 
 pub use error::{ApiError, ApiResult};

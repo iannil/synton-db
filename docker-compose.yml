@@ -37,48 +37,6 @@ services:
       retries: 3
       start_period: 5s
 
-  ###################################
-  # Prometheus - Metrics Collection
-  ###################################
-  prometheus:
-    image: prom/prometheus:v2.55.1
-    container_name: synton-prometheus
-    restart: unless-stopped
-    ports:
-      - "5572:9090"
-    volumes:
-      - ./release/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - synton-network
-
-  ###################################
-  # Grafana - Visualization
-  ###################################
-  grafana:
-    image: grafana/grafana:11.3.1
-    container_name: synton-grafana
-    restart: unless-stopped
-    ports:
-      - "5573:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./release/docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
-      - ./release/docker/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    networks:
-      - synton-network
-    depends_on:
-      - prometheus
-
 networks:
   synton-network:
     driver: bridge
@@ -87,10 +45,6 @@ networks:
 volumes:
   synton-data:
     name: synton-data
-  prometheus-data:
-    name: synton-prometheus-data
-  grafana-data:
-    name: synton-grafana-data
 
 # MCP Server Note:
 # The MCP server communicates via stdio (not network ports) and should run on the host machine.
