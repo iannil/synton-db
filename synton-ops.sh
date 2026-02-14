@@ -32,7 +32,6 @@ MCP_BIN="${PROJECT_ROOT}/target/release/synton-mcp-server"
 PID_DIR="${PROJECT_ROOT}/.pids"
 DB_SERVER_PID="${PID_DIR}/synton-db-server.pid"
 API_SERVER_PID="${PID_DIR}/synton-server.pid"
-WEB_SERVER_PID="${PID_DIR}/web-server.pid"
 
 # 日志目录
 LOG_DIR="${PROJECT_ROOT}/logs"
@@ -41,7 +40,7 @@ LOG_DIR="${PROJECT_ROOT}/logs"
 REST_PORT="${SYNTON_REST_PORT:-5570}"
 GRPC_PORT="${SYNTON_GRPC_PORT:-5571}"
 API_SERVER_PORT="${SYNTON_API_SERVER_PORT:-5578}"
-WEB_SERVER_PORT="${SYNTON_WEB_PORT:-5173}"
+"
 PROMETHEUS_PORT="${SYNTON_PROMETHEUS_PORT:-5572}"
 GRAFANA_PORT="${SYNTON_GRAFANA_PORT:-5573}"
 
@@ -53,7 +52,7 @@ else
 fi
 
 # 服务列表（用于日志查看）
-DOCKER_SERVICES=("synton-db" "prometheus" "grafana" "web")
+DOCKER_SERVICES=("synton-db" "prometheus" "grafana")
 
 # 运行模式: docker 或 local
 SYNTON_MODE="${SYNTON_MODE:-local}"
@@ -247,20 +246,11 @@ show_status() {
             echo -e "  synton-server:    ${RED}Stopped${NC}"
         fi
 
-        # Web Server 状态
-        if is_service_running "$WEB_SERVER_PID"; then
-            local pid=$(cat "$WEB_SERVER_PID")
-            echo -e "  web-server:      ${GREEN}Running${NC} (PID: $pid)"
-        else
-            echo -e "  web-server:      ${RED}Stopped${NC}"
-        fi
-
         echo ""
         echo -e "${CYAN}Ports:${NC}"
         get_port_status "$REST_PORT" "REST API"
         get_port_status "$GRPC_PORT" "gRPC"
         get_port_status "$API_SERVER_PORT" "API Server"
-        get_port_status "$WEB_SERVER_PORT" "Web UI"
     else
         echo -e "${CYAN}Mode:${NC} ${GREEN}Docker${NC}"
         echo ""
@@ -271,7 +261,6 @@ show_status() {
         echo -e "${CYAN}Ports:${NC}"
         get_port_status "$REST_PORT" "REST API"
         get_port_status "$GRPC_PORT" "gRPC"
-        get_port_status "$WEB_SERVER_PORT" "Web UI"
         get_port_status "$PROMETHEUS_PORT" "Prometheus"
         get_port_status "$GRAFANA_PORT" "Grafana"
     fi
@@ -324,7 +313,6 @@ cmd_start_local() {
 
     # 检查是否已有服务在运行
     local db_started=false
-    local web_started=false
 
     if is_service_running "$DB_SERVER_PID"; then
         print_warning "synton-db-server already running"
@@ -353,26 +341,6 @@ cmd_start_local() {
         db_started=true
     fi
 
-    # 启动 Web 服务器
-    if is_service_running "$WEB_SERVER_PID"; then
-        print_warning "web-server already running"
-    else
-        if command -v npm &> /dev/null; then
-            print_info "启动 web-server..."
-
-            cd "$PROJECT_ROOT/web"
-            nohup npm run dev > "$LOG_DIR/web-server.log" 2>&1 &
-            local web_pid=$!
-            echo "$web_pid" > "$WEB_SERVER_PID"
-
-            print_success "web-server 已启动 (PID: $web_pid)"
-            cd "$PROJECT_ROOT"
-            web_started=true
-        else
-            print_warning "npm not installed, skipping web-server"
-        fi
-    fi
-
     # 等待服务就绪
     print_info "等待服务启动..."
     local count=0
@@ -390,9 +358,6 @@ cmd_start_local() {
     echo ""
     echo -e "  REST API:       ${BLUE}http://localhost:$REST_PORT${NC}"
     echo -e "  gRPC:           ${BLUE}localhost:$GRPC_PORT${NC}"
-    if $web_started; then
-        echo -e "  Web UI:         ${BLUE}http://localhost:$WEB_SERVER_PORT${NC}"
-    fi
     echo -e "  Log Directory:   ${BLUE}${LOG_DIR}${NC}"
     echo ""
     echo -e "${CYAN}Tips:${NC}"
@@ -419,7 +384,6 @@ cmd_start_docker() {
     echo ""
     echo -e "  REST API:    ${BLUE}http://localhost:$REST_PORT${NC}"
     echo -e "  gRPC:        ${BLUE}localhost:$GRPC_PORT${NC}"
-    echo -e "  Web UI:      ${BLUE}http://localhost:$WEB_SERVER_PORT${NC}"
     echo -e "  Prometheus:  ${BLUE}http://localhost:$PROMETHEUS_PORT${NC}"
     echo -e "  Grafana:     ${BLUE}http://localhost:$GRAFANA_PORT${NC} (admin/admin)"
     echo ""
@@ -453,11 +417,6 @@ cmd_stop_local() {
 
     if is_service_running "$API_SERVER_PID"; then
         stop_service_by_pid "$API_SERVER_PID" "synton-server"
-        stopped=1
-    fi
-
-    if is_service_running "$WEB_SERVER_PID"; then
-        stop_service_by_pid "$WEB_SERVER_PID" "web-server"
         stopped=1
     fi
 
@@ -543,11 +502,6 @@ cmd_logs_local() {
             tail -f "$LOG_DIR/api-server.log" &
         fi
 
-        if [ -f "$LOG_DIR/web-server.log" ]; then
-            echo -e "${CYAN}=== Web Server Logs ===${NC}"
-            tail -f "$LOG_DIR/web-server.log" &
-        fi
-
         trap "kill $tail_pid 2>/dev/null || true; exit 0" INT TERM
         wait
     else
@@ -570,16 +524,9 @@ cmd_logs_local() {
                     print_error "日志文件不存在: $LOG_DIR/api-server.log"
                 fi
                 ;;
-            web|web-server)
-                if [ -f "$LOG_DIR/web-server.log" ]; then
-                    tail -f "$LOG_DIR/web-server.log"
-                else
-                    print_error "日志文件不存在: $LOG_DIR/web-server.log"
-                fi
-                ;;
             *)
                 print_error "未知服务: $service"
-                print_info "可用服务: db-server, api-server, web-server"
+                print_info "可用服务: db-server, api-server"
                 ;;
         esac
     fi
@@ -622,7 +569,7 @@ cmd_rebuild_local() {
 
     check_project
 
-    if is_service_running "$DB_SERVER_PID" || is_service_running "$API_SERVER_PID" || is_service_running "$WEB_SERVER_PID"; then
+    if is_service_running "$DB_SERVER_PID" || is_service_running "$API_SERVER_PID"; then
         print_info "停止运行中的服务..."
         cmd_stop_local
     fi
@@ -854,21 +801,18 @@ Description:
   - Run mode controlled by SYNTON_MODE env var (default: local)
   - Local mode (local): Directly run compiled binaries
   - Docker mode (docker): Use Docker Compose to run services
-  - Web UI (React + Vite) starts automatically in both modes
   - MCP server uses stdio, runs directly from clients like Claude Code
 
 Environment Variables:
   SYNTON_MODE              Run mode: local or docker (default: local)
   SYNTON_REST_PORT         REST API port (default: 5570)
   SYNTON_GRPC_PORT         gRPC port (default: 5571)
-  SYNTON_WEB_PORT          Web UI port (default: 5173)
 
 Examples:
   $0 start                      # Start services (local mode)
   $0 status                     # Show service status
   $0 logs db-server             # View specific service logs (local)
   $0 logs synton-db             # View specific service logs (Docker)
-  $0 logs web                   # View web service logs (all modes)
   $0 mcp                        # Manual MCP test (debug only)
   SYNTON_MODE=docker $0 start   # Use Docker mode
 ================================
